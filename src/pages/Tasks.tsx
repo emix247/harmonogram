@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
 import { formatDate, statusColor, statusLabel, priorityColor, generateId, nextWorkday, addWorkdays, countWorkdays, getEffectiveProgress } from '../utils/helpers';
-import { Plus, Trash2, CheckSquare, Filter, Link2, X, ArrowRight, AlertCircle, Save, AlertTriangle, Clock, CheckCircle, TrendingUp, Search } from 'lucide-react';
+import { Plus, Trash2, CheckSquare, Filter, Link2, X, ArrowRight, AlertCircle, Save, AlertTriangle, Clock, CheckCircle, TrendingUp, Search, GripVertical, CalendarDays } from 'lucide-react';
 import type { Task, Priority, TaskStatus, Dependency, DependencyType } from '../types';
 
 const DEP_TYPE_LABELS: Record<DependencyType, string> = {
@@ -26,7 +26,7 @@ const priorityLabels: Record<Priority, string> = {
 export default function Tasks() {
   const {
     tasks, projects, crafts, contractors, users, phases, objects, currentProjectId,
-    addTask, updateTask, deleteTask, projectCraftAssignments,
+    addTask, updateTask, deleteTask, projectCraftAssignments, taskOrder, setTaskOrder,
   } = useAppStore();
 
   const [filterStatus, setFilterStatus] = useState('all');
@@ -35,6 +35,11 @@ export default function Tasks() {
   const [searchText, setSearchText] = useState('');
   const [sortCol, setSortCol] = useState<'name' | 'plannedStart' | 'plannedEnd' | 'status' | 'priority' | 'progressPercent'>('plannedStart');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  // ─── Manual sort / drag-and-drop ───
+  const [manualSort, setManualSort] = useState(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   // ─── Side panel ───
   const [panelMode, setPanelMode] = useState<'edit' | 'add' | null>(null);
@@ -82,20 +87,86 @@ export default function Tasks() {
   // ─── Filters + Sort ───
   const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
   const statusOrder: Record<string, number> = { delayed: 0, at_risk: 1, in_progress: 2, not_started: 3, completed: 4 };
-  const visibleTasks = tasks.filter(t => {
+  const filteredTasks = tasks.filter(t => {
     if (filterProject !== 'all' && t.projectId !== filterProject) return false;
     if (filterStatus !== 'all' && t.status !== filterStatus) return false;
     if (filterCraft !== 'all' && t.craftId !== filterCraft) return false;
     if (searchText.trim() && !t.name.toLowerCase().includes(searchText.trim().toLowerCase())) return false;
     return true;
-  }).sort((a, b) => {
-    let cmp = 0;
-    if (sortCol === 'priority') cmp = (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
-    else if (sortCol === 'status') cmp = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
-    else if (sortCol === 'progressPercent') cmp = a.progressPercent - b.progressPercent;
-    else cmp = String(a[sortCol]).localeCompare(String(b[sortCol]));
-    return sortDir === 'asc' ? cmp : -cmp;
   });
+
+  // Manual mode: sort by persisted taskOrder; Date mode: sort by column
+  const visibleTasks = manualSort
+    ? [...filteredTasks].sort((a, b) => {
+        const ai = taskOrder.indexOf(a.id);
+        const bi = taskOrder.indexOf(b.id);
+        if (ai === -1 && bi === -1) return 0;
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      })
+    : [...filteredTasks].sort((a, b) => {
+        let cmp = 0;
+        if (sortCol === 'priority') cmp = (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
+        else if (sortCol === 'status') cmp = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+        else if (sortCol === 'progressPercent') cmp = a.progressPercent - b.progressPercent;
+        else cmp = String(a[sortCol]).localeCompare(String(b[sortCol]));
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+
+  // ─── Drag-and-drop handlers ───
+  const handleDragStart = (e: React.DragEvent, idx: number) => {
+    setDragIdx(idx);
+    e.dataTransfer.effectAllowed = 'move';
+    // Transparent drag image so it doesn't obscure the row indicator
+    const el = e.currentTarget as HTMLElement;
+    e.dataTransfer.setDragImage(el, 20, 20);
+  };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (idx !== dragOverIdx) setDragOverIdx(idx);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIdx: number) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === targetIdx) {
+      setDragIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    // Reorder within the visible list
+    const newVisible = [...visibleTasks];
+    const [moved] = newVisible.splice(dragIdx, 1);
+    newVisible.splice(targetIdx, 0, moved);
+
+    // Rebuild full taskOrder: replace positions held by visible tasks with new order
+    const newOrder = [...taskOrder];
+    const visibleIds = visibleTasks.map(t => t.id);
+    const positions = visibleIds.map(id => {
+      const pos = newOrder.indexOf(id);
+      return pos === -1 ? newOrder.length : pos; // append new tasks at end
+    }).sort((a, b) => a - b);
+
+    // Fill those positions with newVisible order
+    newVisible.forEach((task, i) => {
+      if (positions[i] < newOrder.length) {
+        newOrder[positions[i]] = task.id;
+      } else {
+        newOrder.push(task.id);
+      }
+    });
+
+    setTaskOrder(newOrder);
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
 
   // ─── Stats ───
   const allProjectTasks = filterProject !== 'all' ? tasks.filter(t => t.projectId === filterProject) : tasks;
@@ -300,6 +371,29 @@ export default function Tasks() {
               {searchText && <button onClick={() => setSearchText('')} className="text-gray-300 hover:text-gray-500 text-xs">×</button>}
             </div>
             <span className="text-sm text-gray-400 ml-1">{visibleTasks.length} úkolů</span>
+
+            {/* Manual / Date sort toggle */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 ml-1">
+              <button
+                onClick={() => setManualSort(false)}
+                title="Řadit dle data zahájení"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  !manualSort ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <CalendarDays size={13} /> Dle data
+              </button>
+              <button
+                onClick={() => setManualSort(true)}
+                title="Ručně přesouvat pořadí táhnutím"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  manualSort ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <GripVertical size={13} /> Ručně řadit
+              </button>
+            </div>
+
             <div className="flex-1" />
             <button
               onClick={openAdd}
@@ -316,6 +410,8 @@ export default function Tasks() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  {/* Drag handle column – visible only in manual mode */}
+                  <th className={`py-3 w-8 ${manualSort ? 'px-2' : 'px-0 w-0 opacity-0'}`} />
                   <th className="px-4 py-3 w-8" />
                   <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs w-8">#</th>
                   {([
@@ -330,7 +426,7 @@ export default function Tasks() {
                     ['status', 'Stav'],
                   ] as [string | null, string][]).map(([col, label]) => (
                     <th key={label} className="text-left px-4 py-3 font-medium text-gray-500 text-xs">
-                      {col ? (
+                      {col && !manualSort ? (
                         <button
                           className="flex items-center gap-1 hover:text-gray-700"
                           onClick={() => toggleSort(col as typeof sortCol)}
@@ -351,19 +447,39 @@ export default function Tasks() {
                   const isOverdue = task.plannedEnd < today && task.status !== 'completed';
                   const preds = task.predecessors ?? [];
                   const isActive = editingTask?.id === task.id && panelOpen;
+                  const isDragging = dragIdx === idx;
+                  const isDragOver = dragOverIdx === idx && dragIdx !== null && dragIdx !== idx;
 
                   return (
                     <tr
                       key={task.id}
+                      draggable={manualSort}
+                      onDragStart={manualSort ? (e) => handleDragStart(e, idx) : undefined}
+                      onDragOver={manualSort ? (e) => handleDragOver(e, idx) : undefined}
+                      onDrop={manualSort ? (e) => handleDrop(e, idx) : undefined}
+                      onDragEnd={manualSort ? handleDragEnd : undefined}
                       onClick={() => openEdit(task)}
                       className={`cursor-pointer transition-colors ${
-                        isActive
+                        isDragging
+                          ? 'opacity-40 bg-blue-50'
+                          : isDragOver
+                          ? 'border-t-2 border-t-blue-500 bg-blue-50/30'
+                          : isActive
                           ? 'bg-blue-50 border-l-2 border-l-blue-500'
                           : isOverdue
                           ? 'bg-red-50/30 hover:bg-red-50/60'
                           : 'hover:bg-gray-50'
                       }`}
                     >
+                      {/* Drag handle */}
+                      <td
+                        className={`py-3 text-gray-300 transition-all ${manualSort ? 'px-2' : 'px-0 w-0 overflow-hidden'}`}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {manualSort && (
+                          <GripVertical size={16} className="cursor-grab active:cursor-grabbing hover:text-gray-500" />
+                        )}
+                      </td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <button
                           title={task.status === 'completed' ? 'Označit jako nezahájeno' : 'Označit jako dokončeno'}

@@ -773,6 +773,7 @@ interface AppState {
   objects: ProjectObject[];
   projectShares: ProjectShare[];
   projectCraftAssignments: ProjectCraftAssignment[];
+  taskOrder: string[];
   roles: Role[];
 
   // UI State
@@ -839,6 +840,9 @@ interface AppState {
   setProjectCraftAssignment: (pa: ProjectCraftAssignment) => void;
   clearProjectCraftAssignment: (projectId: string, craftId: string) => void;
 
+  // Task Order Actions
+  setTaskOrder: (ids: string[]) => void;
+
   // Log Actions
   addLog: (log: TaskLog) => void;
 }
@@ -862,6 +866,7 @@ export const useAppStore = create<AppState>()(
       objects: sampleObjects,
       projectShares: [],
       projectCraftAssignments: [],
+      taskOrder: sampleTasks.map(t => t.id),
       roles: defaultRoles,
 
       currentProjectId: 'p1',
@@ -874,10 +879,11 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           // When adding a task with predecessors, cascade dates immediately
           const newList = [...state.tasks, task];
+          const newOrder = [...state.taskOrder, task.id];
           if (task.predecessors?.length) {
-            return { tasks: cascadeTaskDates(task.id, newList) };
+            return { tasks: cascadeTaskDates(task.id, newList), taskOrder: newOrder };
           }
-          return { tasks: newList };
+          return { tasks: newList, taskOrder: newOrder };
         }),
       updateTask: (id, updates) =>
         set((state) => {
@@ -894,7 +900,11 @@ export const useAppStore = create<AppState>()(
           }
           return { tasks: updatedList };
         }),
-      deleteTask: (id) => set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) })),
+      deleteTask: (id) => set((state) => ({
+        tasks: state.tasks.filter((t) => t.id !== id),
+        taskOrder: state.taskOrder.filter(tid => tid !== id),
+      })),
+      setTaskOrder: (ids) => set({ taskOrder: ids }),
 
       addProject: (project) => set((state) => ({ projects: [...state.projects, project] })),
       updateProject: (id, updates) =>
