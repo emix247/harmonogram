@@ -14,11 +14,37 @@ import { useState, useCallback, useRef } from 'react';
  *     ...
  *   </table>
  */
-export function useResizableColumns(initialWidths: number[]) {
-  const [widths, setWidths] = useState<number[]>(initialWidths);
+const LS_PREFIX = 'col-widths:';
+
+function loadWidths(key: string, fallback: number[]): number[] {
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + key);
+    if (!raw) return fallback;
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length === fallback.length && parsed.every(v => typeof v === 'number')) {
+      return parsed as number[];
+    }
+  } catch { /* ignore */ }
+  return fallback;
+}
+
+/**
+ * @param initialWidths  Default column widths (px). Used only on first ever visit.
+ * @param storageKey     Optional localStorage key. When provided, widths persist
+ *                       across component unmount / page navigation.
+ */
+export function useResizableColumns(initialWidths: number[], storageKey?: string) {
+  const [widths, setWidths] = useState<number[]>(() =>
+    storageKey ? loadWidths(storageKey, initialWidths) : initialWidths
+  );
+
   // keep a ref so the stable startResize callback always reads current widths
   const widthsRef = useRef(widths);
   widthsRef.current = widths;
+
+  // stable ref to storageKey so startResize (empty deps) can access it
+  const storageKeyRef = useRef(storageKey);
+  storageKeyRef.current = storageKey;
 
   const startResize = useCallback((colIndex: number, e: React.MouseEvent) => {
     e.preventDefault();
@@ -31,6 +57,9 @@ export function useResizableColumns(initialWidths: number[]) {
       setWidths(prev => {
         const next = [...prev];
         next[colIndex] = newWidth;
+        if (storageKeyRef.current) {
+          localStorage.setItem(LS_PREFIX + storageKeyRef.current, JSON.stringify(next));
+        }
         return next;
       });
     };

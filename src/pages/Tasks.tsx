@@ -38,7 +38,7 @@ export default function Tasks() {
 
   // ─── Resizable columns ───
   // cols: drag(0) | check(1) | #(2) | name(3) | phase(4) | project(5) | contractor(6) | predecessors(7) | start(8) | end(9) | priority(10) | progress(11) | status(12)
-  const { widths: colW, startResize } = useResizableColumns([28, 40, 40, 210, 120, 140, 115, 135, 92, 92, 82, 100, 95]);
+  const { widths: colW, startResize } = useResizableColumns([28, 40, 40, 210, 120, 140, 115, 135, 92, 92, 82, 100, 95], 'tasks');
 
   // ─── Manual sort / drag-and-drop ───
   const [manualSort, setManualSort] = useState(false);

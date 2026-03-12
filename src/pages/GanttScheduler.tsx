@@ -92,7 +92,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
 
   // ─── Resizable columns for the task list table ───
   // cols: #(0) | name(1) | phase(2) | object(3) | craft(4) | start(5) | end(6) | duration(7) | progress(8) | status(9)
-  const { widths: tblW, startResize: tblResize } = useResizableColumns([40, 210, 120, 110, 110, 92, 92, 72, 120, 95]);
+  const { widths: tblW, startResize: tblResize } = useResizableColumns([40, 210, 120, 110, 110, 92, 92, 72, 120, 95], 'gantt');
 
   // ─── Side panel state ───
   const [panelMode, setPanelMode] = useState<'edit' | 'add' | null>(null);
