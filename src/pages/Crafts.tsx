@@ -10,8 +10,8 @@ import type { Craft, Contractor, ContractorContact } from '../types';
 const emptyContact = (): ContractorContact => ({ id: generateId(), name: '', phone: '', email: '' });
 
 export default function Crafts() {
-  const { crafts, contractors, tasks, conflicts } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'crafts' | 'contractors' | 'conflicts'>('crafts');
+  const { crafts, contractors, tasks, conflicts, projects, projectCraftAssignments, setProjectCraftAssignment } = useAppStore();
+  const [activeTab, setActiveTab] = useState<'crafts' | 'contractors' | 'conflicts' | 'assignments'>('crafts');
   const [showCraftModal, setShowCraftModal] = useState(false);
   const [showContractorModal, setShowContractorModal] = useState(false);
   const [editingCraft, setEditingCraft] = useState<Craft | null>(null);
@@ -136,6 +136,7 @@ export default function Crafts() {
           { id: 'crafts', label: 'Řemesla' },
           { id: 'contractors', label: 'Zhotovitelé' },
           { id: 'conflicts', label: `Konflikty (${conflicts.length})` },
+          { id: 'assignments', label: 'Přiřazení k projektům' },
         ].map(tab => (
           <button
             key={tab.id}
@@ -467,6 +468,85 @@ export default function Crafts() {
               })}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ─── ASSIGNMENTS TAB ─── */}
+      {activeTab === 'assignments' && (
+        <div>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 flex items-start gap-3">
+            <Users size={16} className="text-blue-500 mt-0.5 shrink-0" />
+            <p className="text-sm text-blue-700">
+              Přiřaďte každému řemeslu konkrétního zhotovitele pro každý projekt zvlášť.
+              Při zakládání úkolu se zhotovitel vyplní automaticky.
+            </p>
+          </div>
+
+          {projects.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">Nejprve přidejte projekty.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left px-4 py-3 font-semibold text-gray-600 min-w-[160px]">Řemeslo</th>
+                    {projects.map(p => (
+                      <th key={p.id} className="text-left px-4 py-3 font-semibold text-gray-600 min-w-[200px]">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color || '#6b7280' }} />
+                          <span className="truncate max-w-[160px]" title={p.name}>{p.name}</span>
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {crafts.map(craft => {
+                    // Only show contractors who handle this craft
+                    const craftContractors = contractors.filter(c => c.crafts.includes(craft.id));
+                    return (
+                      <tr key={craft.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: craft.color }} />
+                            <span className="font-medium text-gray-700">{craft.name}</span>
+                          </div>
+                        </td>
+                        {projects.map(project => {
+                          const assignment = projectCraftAssignments.find(
+                            a => a.projectId === project.id && a.craftId === craft.id
+                          );
+                          // Fallback options: craft-level default + craft-specific contractors
+                          const defaultContractor = contractors.find(c => c.id === craft.contractorId);
+                          const options = craftContractors.length > 0 ? craftContractors : contractors;
+                          return (
+                            <td key={project.id} className="px-4 py-2">
+                              <select
+                                value={assignment?.contractorId || ''}
+                                onChange={e => setProjectCraftAssignment({
+                                  projectId: project.id,
+                                  craftId: craft.id,
+                                  contractorId: e.target.value,
+                                })}
+                                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400 bg-white"
+                              >
+                                <option value="">
+                                  {defaultContractor ? `↳ ${defaultContractor.name} (výchozí)` : '— nevybráno —'}
+                                </option>
+                                {options.map(c => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

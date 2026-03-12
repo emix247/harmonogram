@@ -43,6 +43,13 @@ export interface ProjectShare {
   createdAt: string;
 }
 
+// Maps which contractor handles a given craft on a given project
+export interface ProjectCraftAssignment {
+  projectId: string;
+  craftId: string;
+  contractorId: string;
+}
+
 export interface Craft {
   id: string;
   name: string;

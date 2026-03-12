@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   Project, Task, Craft, Contractor, Milestone, Risk, Template,
-  TaskLog, MobileReport, ConflictAlert, Company, User, Phase, ProjectObject, ProjectShare, Role
+  TaskLog, MobileReport, ConflictAlert, Company, User, Phase, ProjectObject, ProjectShare, Role, ProjectCraftAssignment
 } from '../types';
 
 // =================== DEPENDENCY CASCADE HELPERS ===================
@@ -772,6 +772,7 @@ interface AppState {
   phases: Phase[];
   objects: ProjectObject[];
   projectShares: ProjectShare[];
+  projectCraftAssignments: ProjectCraftAssignment[];
   roles: Role[];
 
   // UI State
@@ -834,6 +835,10 @@ interface AppState {
   addProjectShare: (share: ProjectShare) => void;
   deleteProjectShare: (id: string) => void;
 
+  // Project-Craft Assignment Actions
+  setProjectCraftAssignment: (pa: ProjectCraftAssignment) => void;
+  clearProjectCraftAssignment: (projectId: string, craftId: string) => void;
+
   // Log Actions
   addLog: (log: TaskLog) => void;
 }
@@ -856,6 +861,7 @@ export const useAppStore = create<AppState>()(
       phases: samplePhases,
       objects: sampleObjects,
       projectShares: [],
+      projectCraftAssignments: [],
       roles: defaultRoles,
 
       currentProjectId: 'p1',
@@ -942,6 +948,18 @@ export const useAppStore = create<AppState>()(
 
       addProjectShare: (share) => set((state) => ({ projectShares: [...state.projectShares, share] })),
       deleteProjectShare: (id) => set((state) => ({ projectShares: state.projectShares.filter((s) => s.id !== id) })),
+
+      setProjectCraftAssignment: (pa) => set((state) => {
+        const filtered = state.projectCraftAssignments.filter(
+          a => !(a.projectId === pa.projectId && a.craftId === pa.craftId)
+        );
+        return { projectCraftAssignments: pa.contractorId ? [...filtered, pa] : filtered };
+      }),
+      clearProjectCraftAssignment: (projectId, craftId) => set((state) => ({
+        projectCraftAssignments: state.projectCraftAssignments.filter(
+          a => !(a.projectId === projectId && a.craftId === craftId)
+        ),
+      })),
 
       addRole: (role) => set((state) => ({ roles: [...state.roles, role] })),
       updateRole: (id, updates) =>

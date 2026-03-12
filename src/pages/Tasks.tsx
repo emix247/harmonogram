@@ -26,7 +26,7 @@ const priorityLabels: Record<Priority, string> = {
 export default function Tasks() {
   const {
     tasks, projects, crafts, contractors, users, phases, objects, currentProjectId,
-    addTask, updateTask, deleteTask,
+    addTask, updateTask, deleteTask, projectCraftAssignments,
   } = useAppStore();
 
   const [filterStatus, setFilterStatus] = useState('all');
@@ -642,8 +642,14 @@ export default function Tasks() {
                     <select
                       value={form.craftId || ''}
                       onChange={e => {
-                        const craft = crafts.find(c => c.id === e.target.value);
-                        setForm(f => ({ ...f, craftId: e.target.value, contractorId: craft?.contractorId || '' }));
+                        const craftId = e.target.value;
+                        const craft = crafts.find(c => c.id === craftId);
+                        // Project-specific assignment takes priority over craft default
+                        const assignment = projectCraftAssignments.find(
+                          a => a.projectId === form.projectId && a.craftId === craftId
+                        );
+                        const contractorId = assignment?.contractorId || craft?.contractorId || '';
+                        setForm(f => ({ ...f, craftId, contractorId }));
                       }}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
                     >
