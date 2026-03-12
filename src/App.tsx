@@ -1,6 +1,7 @@
 import { useState, Component, type ErrorInfo, type ReactNode } from 'react';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
+import Login from './pages/Login';
 import { useAppStore } from './store/appStore';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
@@ -56,11 +57,16 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 export default function App() {
   const { currentPage } = useAppStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(() => !!sessionStorage.getItem('harmonogram-auth'));
 
   // ─── Detect share link: ?share=TOKEN ───
   const shareToken = new URLSearchParams(window.location.search).get('share');
   if (shareToken) {
     return <PublicView token={shareToken} />;
+  }
+
+  if (!loggedIn) {
+    return <Login onLogin={() => setLoggedIn(true)} />;
   }
 
   const PageComponent = pages[currentPage] || Dashboard;
@@ -75,7 +81,11 @@ export default function App() {
         />
       )}
 
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onLogout={() => { sessionStorage.removeItem('harmonogram-auth'); setLoggedIn(false); }}
+      />
 
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen overflow-hidden">
         <Header onMenuOpen={() => setSidebarOpen(true)} />

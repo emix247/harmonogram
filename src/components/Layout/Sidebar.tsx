@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/appStore';
 import {
   LayoutDashboard, FolderOpen, GanttChartSquare, CheckSquare,
   Wrench, Flag, FileStack, AlertTriangle, BarChart3,
-  Smartphone, DollarSign, History, Settings, ChevronDown, Layers, X
+  Smartphone, DollarSign, History, Settings, ChevronDown, Layers, X, LogOut
 } from 'lucide-react';
 
 const menuItems = [
@@ -31,9 +31,10 @@ const STATUS_DOT: Record<string, string> = {
 interface Props {
   open: boolean;
   onClose: () => void;
+  onLogout: () => void;
 }
 
-export default function Sidebar({ open, onClose }: Props) {
+export default function Sidebar({ open, onClose, onLogout }: Props) {
   const { currentPage, setCurrentPage, conflicts, tasks, risks, milestones, projects, currentProjectId, setCurrentProjectId } = useAppStore();
   const [projectOpen, setProjectOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -198,7 +199,7 @@ export default function Sidebar({ open, onClose }: Props) {
         })}
       </nav>
 
-      {/* Footer: Settings + user info */}
+      {/* Footer: Settings + user info + logout */}
       <div className="border-t border-gray-700">
         <button
           onClick={() => handleNav('settings')}
@@ -211,10 +212,19 @@ export default function Sidebar({ open, onClose }: Props) {
           <Settings size={17} />
           <span>Nastavení</span>
         </button>
-        <div className="px-4 py-3 text-xs text-gray-500">
-          <p className="font-medium text-gray-400">TESGRUP s.r.o.</p>
-          <p>Ing. Jan Novák</p>
-          <p className="text-blue-400">Administrátor</p>
+        <div className="px-4 py-2 flex items-center justify-between">
+          <div className="text-xs text-gray-500">
+            <p className="font-medium text-gray-400">TESGRUP s.r.o.</p>
+            <p>Ing. Jan Novák</p>
+            <p className="text-blue-400">Administrátor</p>
+          </div>
+          <button
+            onClick={onLogout}
+            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors"
+            title="Odhlásit se"
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       </div>
     </aside>

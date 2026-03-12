@@ -168,7 +168,7 @@ const sampleCrafts: Craft[] = [
 ];
 
 const sampleUsers: User[] = [
-  { id: 'u1', name: 'Ing. Jan Novák', email: 'novak@tesgrup.cz', role: 'admin', companyId: 'c1' },
+  { id: 'u1', name: 'Ing. Jan Novák', email: 'novak@tesgrup.cz', role: 'admin', companyId: 'c1', loginName: 'admin', password: 'tesgrup2024' },
   { id: 'u2', name: 'Bc. Marie Svobodová', email: 'svobodova@tesgrup.cz', role: 'project_manager', companyId: 'c1' },
   { id: 'u3', name: 'Pavel Čermák', email: 'cermak@tesgrup.cz', role: 'site_manager', companyId: 'c1' },
   { id: 'u4', name: 'Lucie Horáčková', email: 'horáčková@tesgrup.cz', role: 'viewer', companyId: 'c1' },
