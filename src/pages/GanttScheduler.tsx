@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
-import { formatDate, statusColor, statusLabel, generateId, nextWorkday } from '../utils/helpers';
+import { formatDate, statusColor, statusLabel, generateId, nextWorkday, addWorkdays, countWorkdays } from '../utils/helpers';
 import { ChevronLeft, ChevronRight, Plus, X, Trash2, Save, AlertTriangle, Search } from 'lucide-react';
 import type { Task, TaskStatus, Priority } from '../types';
 import { useResizableColumns, ResizeHandle } from '../hooks/useResizableColumns';
@@ -769,22 +769,47 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Zahájení</label>
-                  <input
-                    type="date"
-                    value={panelForm.plannedStart || ''}
-                    onChange={e => setPanelForm(f => ({ ...f, plannedStart: nextWorkday(e.target.value) }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
-                  />
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Zahájení</label>
+                    <input
+                      type="date"
+                      value={panelForm.plannedStart || ''}
+                      onChange={e => {
+                        const start = nextWorkday(e.target.value);
+                        const dur = panelForm.plannedDuration ?? 1;
+                        const end = addWorkdays(start, dur - 1);
+                        setPanelForm(f => ({ ...f, plannedStart: start, plannedEnd: end }));
+                      }}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Trvání (prac. dny)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={panelForm.plannedDuration ?? 1}
+                      onChange={e => {
+                        const dur = Math.max(1, parseInt(e.target.value) || 1);
+                        const end = addWorkdays(panelForm.plannedStart || todayStr, dur - 1);
+                        setPanelForm(f => ({ ...f, plannedDuration: dur, plannedEnd: end }));
+                      }}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Dokončení</label>
                   <input
                     type="date"
                     value={panelForm.plannedEnd || ''}
-                    onChange={e => setPanelForm(f => ({ ...f, plannedEnd: nextWorkday(e.target.value) }))}
+                    onChange={e => {
+                      const end = nextWorkday(e.target.value);
+                      const dur = countWorkdays(panelForm.plannedStart || todayStr, end);
+                      setPanelForm(f => ({ ...f, plannedEnd: end, plannedDuration: dur }));
+                    }}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
                   />
                 </div>
