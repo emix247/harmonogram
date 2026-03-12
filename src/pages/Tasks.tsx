@@ -3,6 +3,7 @@ import { useAppStore } from '../store/appStore';
 import { formatDate, statusColor, statusLabel, priorityColor, generateId, nextWorkday, addWorkdays, countWorkdays, getEffectiveProgress } from '../utils/helpers';
 import { Plus, Trash2, CheckSquare, Filter, Link2, X, ArrowRight, AlertCircle, Save, AlertTriangle, Clock, CheckCircle, TrendingUp, Search, GripVertical, CalendarDays } from 'lucide-react';
 import type { Task, Priority, TaskStatus, Dependency, DependencyType } from '../types';
+import { useResizableColumns, ResizeHandle } from '../hooks/useResizableColumns';
 
 const DEP_TYPE_LABELS: Record<DependencyType, string> = {
   FS: 'FS – Konec → Start',
@@ -34,6 +35,10 @@ export default function Tasks() {
   const [searchText, setSearchText] = useState('');
   const [sortCol, setSortCol] = useState<'name' | 'plannedStart' | 'plannedEnd' | 'status' | 'priority' | 'progressPercent'>('plannedStart');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  // ─── Resizable columns ───
+  // cols: drag(0) | check(1) | #(2) | name(3) | phase(4) | project(5) | contractor(6) | predecessors(7) | start(8) | end(9) | priority(10) | progress(11) | status(12)
+  const { widths: colW, startResize } = useResizableColumns([28, 40, 40, 210, 120, 140, 115, 135, 92, 92, 82, 100, 95]);
 
   // ─── Manual sort / drag-and-drop ───
   const [manualSort, setManualSort] = useState(false);
@@ -397,13 +402,22 @@ export default function Tasks() {
         {/* ─── Task Table ─── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="text-sm" style={{ tableLayout: 'fixed', width: colW.reduce((s, w) => s + w, 0) }}>
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   {/* Drag handle column – visible only in manual mode */}
-                  <th className={`py-3 w-8 ${manualSort ? 'px-2' : 'px-0 w-0 opacity-0'}`} />
-                  <th className="px-4 py-3 w-8" />
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs w-8">#</th>
+                  <th
+                    style={{ width: colW[0], position: 'relative' }}
+                    className={`py-3 ${manualSort ? 'px-2' : 'px-0 opacity-0'}`}
+                  >
+                    <ResizeHandle onMouseDown={e => startResize(0, e)} />
+                  </th>
+                  <th style={{ width: colW[1], position: 'relative' }} className="px-4 py-3">
+                    <ResizeHandle onMouseDown={e => startResize(1, e)} />
+                  </th>
+                  <th style={{ width: colW[2], position: 'relative' }} className="text-left px-4 py-3 font-medium text-gray-500 text-xs">
+                    #<ResizeHandle onMouseDown={e => startResize(2, e)} />
+                  </th>
                   {([
                     ['name', 'Název úkolu'],
                     [null, 'Fáze'],
@@ -415,17 +429,22 @@ export default function Tasks() {
                     ['priority', 'Priorita'],
                     ['progressPercent', 'Postup'],
                     ['status', 'Stav'],
-                  ] as [string | null, string][]).map(([col, label]) => (
-                    <th key={label} className="text-left px-4 py-3 font-medium text-gray-500 text-xs">
+                  ] as [string | null, string][]).map(([col, label], i) => (
+                    <th
+                      key={label}
+                      style={{ width: colW[i + 3], position: 'relative' }}
+                      className="text-left px-4 py-3 font-medium text-gray-500 text-xs overflow-hidden"
+                    >
                       {col && !manualSort ? (
                         <button
-                          className="flex items-center gap-1 hover:text-gray-700"
+                          className="flex items-center gap-1 hover:text-gray-700 truncate w-full"
                           onClick={() => toggleSort(col as typeof sortCol)}
                         >
-                          {label}
-                          <span className="text-gray-300">{sortCol === col ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+                          <span className="truncate">{label}</span>
+                          <span className="text-gray-300 shrink-0">{sortCol === col ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
                         </button>
-                      ) : label}
+                      ) : <span className="truncate block">{label}</span>}
+                      <ResizeHandle onMouseDown={e => startResize(i + 3, e)} />
                     </th>
                   ))}
                 </tr>

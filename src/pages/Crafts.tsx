@@ -48,10 +48,16 @@ export default function Contractors() {
   const { contractors, tasks } = useAppStore();
 
   const [searchText, setSearchText] = useState('');
+  const [filterTags, setFilterTags] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Contractor | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // ─── All unique tags across all contractors (for filter chips) ───
+  const allTags = Array.from(
+    new Set(contractors.flatMap(c => c.tags ?? []))
+  ).sort();
 
   // ─── Form state ───
   const [form, setForm] = useState({
@@ -64,14 +70,23 @@ export default function Contractors() {
 
   // ─── Filtered list ───
   const visibleContractors = contractors.filter(c => {
-    if (!searchText.trim()) return true;
-    const q = searchText.toLowerCase();
-    return (
-      c.name.toLowerCase().includes(q) ||
-      c.contactPerson?.toLowerCase().includes(q) ||
-      (c.tags ?? []).some(t => t.toLowerCase().includes(q))
-    );
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase();
+      const textMatch =
+        c.name.toLowerCase().includes(q) ||
+        c.contactPerson?.toLowerCase().includes(q) ||
+        (c.tags ?? []).some(t => t.toLowerCase().includes(q));
+      if (!textMatch) return false;
+    }
+    if (filterTags.length > 0) {
+      const cTags = c.tags ?? [];
+      if (!filterTags.every(ft => cTags.includes(ft))) return false;
+    }
+    return true;
   });
+
+  const toggleFilterTag = (tag: string) =>
+    setFilterTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
 
   // ─── Active task count per contractor ───
   const activeTaskCount = (contractorId: string) =>
@@ -155,26 +170,62 @@ export default function Contractors() {
     <div className="space-y-5">
 
       {/* ─── Header bar ─── */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-3 py-2 flex-1 max-w-xs">
-          <Search size={14} className="text-gray-400 shrink-0" />
-          <input
-            type="text"
-            placeholder="Hledat zhotovitele nebo štítek..."
-            value={searchText}
-            onChange={e => setSearchText(e.target.value)}
-            className="text-sm outline-none bg-transparent w-full"
-          />
-          {searchText && <button onClick={() => setSearchText('')} className="text-gray-300 hover:text-gray-500 text-xs">×</button>}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+        {/* Top row: search + count + add button */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-2 flex-1 max-w-xs">
+            <Search size={14} className="text-gray-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Hledat zhotovitele nebo štítek..."
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              className="text-sm outline-none bg-transparent w-full"
+            />
+            {searchText && <button onClick={() => setSearchText('')} className="text-gray-300 hover:text-gray-500 text-xs">×</button>}
+          </div>
+          <span className="text-sm text-gray-400">{visibleContractors.length} zhotovitelů</span>
+          {(filterTags.length > 0 || searchText) && (
+            <button
+              onClick={() => { setFilterTags([]); setSearchText(''); }}
+              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+            >
+              <X size={12} /> Zrušit filtry
+            </button>
+          )}
+          <div className="flex-1" />
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 font-medium shrink-0"
+          >
+            <Plus size={16} /> Přidat zhotovitele
+          </button>
         </div>
-        <span className="text-sm text-gray-400">{visibleContractors.length} zhotovitelů</span>
-        <div className="flex-1" />
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 font-medium"
-        >
-          <Plus size={16} /> Přidat zhotovitele
-        </button>
+
+        {/* Tag filter chips */}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-gray-400 font-medium mr-1 flex items-center gap-1">
+              <Tag size={11} /> Filtr štítků:
+            </span>
+            {allTags.map(tag => {
+              const active = filterTags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  onClick={() => toggleFilterTag(tag)}
+                  className={`text-xs px-2.5 py-1 rounded-full font-medium border transition-all ${
+                    active
+                      ? tagColor(tag) + ' border-transparent shadow-sm scale-105'
+                      : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-100'
+                  }`}
+                >
+                  {active && <span className="mr-1">✓</span>}{tag}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ─── Contractor cards grid ─── */}

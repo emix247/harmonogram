@@ -3,6 +3,7 @@ import { useAppStore } from '../store/appStore';
 import { formatDate, statusColor, statusLabel, generateId, nextWorkday } from '../utils/helpers';
 import { ChevronLeft, ChevronRight, Plus, X, Trash2, Save, AlertTriangle, Search } from 'lucide-react';
 import type { Task, TaskStatus, Priority } from '../types';
+import { useResizableColumns, ResizeHandle } from '../hooks/useResizableColumns';
 
 type ZoomLevel = 'week' | 'month' | 'quarter';
 
@@ -88,6 +89,10 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
   const [searchText, setSearchText] = useState('');
   const [offset, setOffset] = useState(0);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+
+  // ─── Resizable columns for the task list table ───
+  // cols: #(0) | name(1) | phase(2) | object(3) | craft(4) | start(5) | end(6) | duration(7) | progress(8) | status(9)
+  const { widths: tblW, startResize: tblResize } = useResizableColumns([40, 210, 120, 110, 110, 92, 92, 72, 120, 95]);
 
   // ─── Side panel state ───
   const [panelMode, setPanelMode] = useState<'edit' | 'add' | null>(null);
@@ -568,19 +573,19 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
           <span className="text-xs text-gray-400">{filteredTasks.length} úkolů{!lockedProjectId && ' · kliknutím na řádek editujete'}</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="text-sm" style={{ tableLayout: 'fixed', width: tblW.reduce((s, w) => s + w, 0) }}>
             <thead className="border-b border-gray-100">
               <tr className="text-xs text-gray-500 bg-gray-50">
-                <th className="text-left px-4 py-2.5 font-medium w-8">#</th>
-                <th className="text-left px-4 py-2.5 font-medium">Název úkolu</th>
-                <th className="text-left px-4 py-2.5 font-medium">Fáze</th>
-                <th className="text-left px-4 py-2.5 font-medium">Objekt</th>
-                <th className="text-left px-4 py-2.5 font-medium">Řemeslo</th>
-                <th className="text-left px-4 py-2.5 font-medium">Zahájení</th>
-                <th className="text-left px-4 py-2.5 font-medium">Dokončení</th>
-                <th className="text-left px-4 py-2.5 font-medium">Trvání</th>
-                <th className="text-left px-4 py-2.5 font-medium">Postup</th>
-                <th className="text-left px-4 py-2.5 font-medium">Stav</th>
+                {(['#', 'Název úkolu', 'Fáze', 'Objekt', 'Řemeslo', 'Zahájení', 'Dokončení', 'Trvání', 'Postup', 'Stav'] as const).map((label, i) => (
+                  <th
+                    key={label}
+                    style={{ width: tblW[i], position: 'relative' }}
+                    className="text-left px-4 py-2.5 font-medium overflow-hidden"
+                  >
+                    <span className="truncate block">{label}</span>
+                    <ResizeHandle onMouseDown={e => tblResize(i, e)} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
