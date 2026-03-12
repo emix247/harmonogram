@@ -14,12 +14,16 @@ export default function Login({ onLogin }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Check against store users (custom credentials set in Settings)
     const user = users.find(
       u => u.loginName === loginName && u.password === password
     );
-    if (user) {
-      sessionStorage.setItem('harmonogram-auth', user.id);
-      onLogin(user.id);
+    // Fallback: built-in default admin (works even with old localStorage data)
+    const isDefault = loginName === 'admin' && password === 'tesgrup2024';
+    if (user || isDefault) {
+      const userId = user?.id ?? 'u1';
+      sessionStorage.setItem('harmonogram-auth', userId);
+      onLogin(userId);
     } else {
       setError('Nesprávné přihlašovací údaje');
     }
