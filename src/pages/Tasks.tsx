@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
-import { formatDate, statusColor, statusLabel, priorityColor, generateId, nextWorkday } from '../utils/helpers';
+import { formatDate, statusColor, statusLabel, priorityColor, generateId, nextWorkday, addWorkdays, countWorkdays } from '../utils/helpers';
 import { Plus, Trash2, CheckSquare, Filter, Link2, X, ArrowRight, AlertCircle, Save, AlertTriangle, Clock, CheckCircle, TrendingUp, Search } from 'lucide-react';
 import type { Task, Priority, TaskStatus, Dependency, DependencyType } from '../types';
 
@@ -642,8 +642,8 @@ export default function Tasks() {
                 </div>
               </div>
 
-              {/* Dates */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Dates + Duration */}
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                     Zahájení
@@ -652,7 +652,28 @@ export default function Tasks() {
                   <input
                     type="date"
                     value={form.plannedStart || ''}
-                    onChange={e => setForm(f => ({ ...f, plannedStart: nextWorkday(e.target.value) }))}
+                    onChange={e => {
+                      const start = nextWorkday(e.target.value);
+                      const dur = form.plannedDuration ?? 1;
+                      const end = addWorkdays(start, dur - 1);
+                      setForm(f => ({ ...f, plannedStart: start, plannedEnd: end }));
+                    }}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Počet prac. dnů
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.plannedDuration ?? 1}
+                    onChange={e => {
+                      const dur = Math.max(1, parseInt(e.target.value) || 1);
+                      const end = addWorkdays(form.plannedStart || today, dur - 1);
+                      setForm(f => ({ ...f, plannedDuration: dur, plannedEnd: end }));
+                    }}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
                   />
                 </div>
@@ -661,7 +682,11 @@ export default function Tasks() {
                   <input
                     type="date"
                     value={form.plannedEnd || ''}
-                    onChange={e => setForm(f => ({ ...f, plannedEnd: nextWorkday(e.target.value) }))}
+                    onChange={e => {
+                      const end = nextWorkday(e.target.value);
+                      const dur = countWorkdays(form.plannedStart || today, end);
+                      setForm(f => ({ ...f, plannedEnd: end, plannedDuration: dur }));
+                    }}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
                   />
                 </div>

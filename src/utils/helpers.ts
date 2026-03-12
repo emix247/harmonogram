@@ -86,3 +86,31 @@ export const nextWorkday = (dateStr: string): string => {
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
 };
+
+// Add N working days (Mon–Fri) to a date. Negative N goes backwards.
+export const addWorkdays = (dateStr: string, days: number): string => {
+  if (!dateStr) return dateStr;
+  const d = new Date(dateStr);
+  const dir = days >= 0 ? 1 : -1;
+  let remaining = Math.abs(days);
+  while (remaining > 0) {
+    d.setDate(d.getDate() + dir);
+    if (d.getDay() !== 0 && d.getDay() !== 6) remaining--;
+  }
+  return d.toISOString().split('T')[0];
+};
+
+// Count working days (Mon–Fri) between two dates, inclusive on both ends.
+export const countWorkdays = (startStr: string, endStr: string): number => {
+  if (!startStr || !endStr) return 1;
+  const start = new Date(startStr);
+  const end = new Date(endStr);
+  if (start > end) return 1;
+  let count = 0;
+  const cur = new Date(start);
+  while (cur <= end) {
+    if (cur.getDay() !== 0 && cur.getDay() !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return Math.max(1, count);
+};
