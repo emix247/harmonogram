@@ -38,7 +38,7 @@ export default function Tasks() {
 
   // ─── Resizable columns ───
   // cols: drag(0) | check(1) | #(2) | name(3) | phase(4) | project(5) | contractor(6) | predecessors(7) | start(8) | end(9) | priority(10) | progress(11) | status(12)
-  const { widths: colW, startResize } = useResizableColumns([28, 40, 40, 210, 120, 140, 115, 135, 92, 92, 82, 100, 95], 'tasks');
+  const { widths: colW, startResize } = useResizableColumns([28, 40, 40, 210, 120, 140, 115, 120, 135, 92, 92, 82, 100, 95], 'tasks');
 
   // ─── Manual sort / drag-and-drop ───
   const [manualSort, setManualSort] = useState(false);
@@ -423,6 +423,7 @@ export default function Tasks() {
                     [null, 'Fáze'],
                     [null, 'Projekt / Objekt'],
                     [null, 'Zhotovitel'],
+                    [null, 'Odpovědná osoba'],
                     [null, 'Navazuje na'],
                     ['plannedStart', 'Zahájení'],
                     ['plannedEnd', 'Dokončení'],
@@ -455,6 +456,7 @@ export default function Tasks() {
                   const phase = phases.find(ph => ph.id === task.phaseId);
                   const contractor = contractors.find(c => c.id === task.contractorId);
                   const obj = objects.find(o => o.id === task.objectId);
+                  const responsiblePerson = users.find(u => u.id === task.responsiblePersonId);
                   const isOverdue = task.plannedEnd < today && task.status !== 'completed';
                   const preds = task.predecessors ?? [];
                   const isActive = editingTask?.id === task.id && panelOpen;
@@ -540,6 +542,20 @@ export default function Tasks() {
                       <td className="px-4 py-3">
                         {contractor ? (
                           <span className="text-xs text-gray-700 font-medium">{contractor.name}</span>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {responsiblePerson ? (
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0"
+                            >
+                              {responsiblePerson.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
+                            </span>
+                            <span className="text-xs text-gray-700 truncate">{responsiblePerson.name}</span>
+                          </div>
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>
                         )}

@@ -91,8 +91,8 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
   // ─── Resizable columns for the task list table ───
-  // cols: #(0) | name(1) | phase(2) | object(3) | craft(4) | start(5) | end(6) | duration(7) | progress(8) | status(9)
-  const { widths: tblW, startResize: tblResize } = useResizableColumns([40, 210, 120, 110, 110, 92, 92, 72, 120, 95], 'gantt');
+  // cols: #(0) | name(1) | phase(2) | object(3) | craft(4) | responsible(5) | start(6) | end(7) | duration(8) | progress(9) | status(10)
+  const { widths: tblW, startResize: tblResize } = useResizableColumns([40, 210, 120, 110, 110, 120, 92, 92, 72, 120, 95], 'gantt');
 
   // ─── Side panel state ───
   const [panelMode, setPanelMode] = useState<'edit' | 'add' | null>(null);
@@ -576,7 +576,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
           <table className="text-sm" style={{ tableLayout: 'fixed', width: tblW.reduce((s, w) => s + w, 0) }}>
             <thead className="border-b border-gray-100">
               <tr className="text-xs text-gray-500 bg-gray-50">
-                {(['#', 'Název úkolu', 'Fáze', 'Objekt', 'Řemeslo', 'Zahájení', 'Dokončení', 'Trvání', 'Postup', 'Stav'] as const).map((label, i) => (
+                {(['#', 'Název úkolu', 'Fáze', 'Objekt', 'Řemeslo', 'Odpovědná osoba', 'Zahájení', 'Dokončení', 'Trvání', 'Postup', 'Stav'] as const).map((label, i) => (
                   <th
                     key={label}
                     style={{ width: tblW[i], position: 'relative' }}
@@ -593,6 +593,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                 const phase = phases.find(ph => ph.id === task.phaseId);
                 const obj = objects.find(o => o.id === task.objectId);
                 const craft = crafts.find(c => c.id === task.craftId);
+                const responsiblePerson = users.find(u => u.id === task.responsiblePersonId);
                 const durationDays = Math.round(
                   (new Date(task.plannedEnd).getTime() - new Date(task.plannedStart).getTime()) / 86400000
                 ) + 1;
@@ -631,6 +632,16 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                         </span>
                       ) : <span className="text-gray-300 text-xs">–</span>}
                     </td>
+                    <td className="px-4 py-2.5">
+                      {responsiblePerson ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                            {responsiblePerson.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
+                          </span>
+                          <span className="text-xs text-gray-700 truncate">{responsiblePerson.name}</span>
+                        </div>
+                      ) : <span className="text-gray-300 text-xs">–</span>}
+                    </td>
                     <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">{formatDate(task.plannedStart)}</td>
                     <td className={`px-4 py-2.5 text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
                       {formatDate(task.plannedEnd)}
@@ -654,7 +665,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
               })}
               {orderedTasks.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="text-center py-8 text-gray-400 text-sm">Žádné úkoly v tomto projektu</td>
+                  <td colSpan={11} className="text-center py-8 text-gray-400 text-sm">Žádné úkoly v tomto projektu</td>
                 </tr>
               )}
             </tbody>
