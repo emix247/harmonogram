@@ -406,6 +406,7 @@ export default function Tasks() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs w-8">#</th>
                   {([
                     ['name', 'Název úkolu'],
+                    [null, 'Fáze'],
                     [null, 'Projekt / Objekt'],
                     [null, 'Zhotovitel'],
                     [null, 'Navazuje na'],
@@ -432,6 +433,7 @@ export default function Tasks() {
               <tbody className="divide-y divide-gray-50">
                 {visibleTasks.map((task, idx) => {
                   const project = projects.find(p => p.id === task.projectId);
+                  const phase = phases.find(ph => ph.id === task.phaseId);
                   const contractor = contractors.find(c => c.id === task.contractorId);
                   const obj = objects.find(o => o.id === task.objectId);
                   const isOverdue = task.plannedEnd < today && task.status !== 'completed';
@@ -495,6 +497,22 @@ export default function Tasks() {
                           </span>
                         </div>
                         {task.notes && <p className="text-xs text-gray-400 truncate max-w-xs mt-0.5">{task.notes}</p>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {phase ? (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
+                            style={{ backgroundColor: phase.color + '22', color: phase.color }}
+                          >
+                            <span
+                              className="w-1.5 h-1.5 rounded-full shrink-0"
+                              style={{ backgroundColor: phase.color }}
+                            />
+                            {phase.name}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-gray-700 text-xs font-medium">{project?.name}</p>
