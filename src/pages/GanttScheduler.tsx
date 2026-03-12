@@ -155,10 +155,36 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
     return '#94a3b8';
   };
 
-  // Flat list sorted by plannedStart — matches the Tasks page default sort
-  const orderedTasks = [...filteredTasks].sort((a, b) =>
-    a.plannedStart.localeCompare(b.plannedStart)
-  );
+  // Build a flat render-items list: phase headers interleaved with their tasks.
+  // Phases are ordered by phase.order; tasks within each phase by plannedStart.
+  const renderItems: Array<
+    | { type: 'phase'; phase: (typeof phases)[0] }
+    | { type: 'task'; task: (typeof tasks)[0] }
+  > = [];
+
+  const projectPhasesSorted = phases
+    .filter(ph => filterProject ? ph.projectId === filterProject : true)
+    .sort((a, b) => a.order - b.order);
+
+  for (const phase of projectPhasesSorted) {
+    const phaseTasks = filteredTasks
+      .filter(t => t.phaseId === phase.id)
+      .sort((a, b) => a.plannedStart.localeCompare(b.plannedStart));
+    if (phaseTasks.length === 0) continue;
+    renderItems.push({ type: 'phase', phase });
+    phaseTasks.forEach(task => renderItems.push({ type: 'task', task }));
+  }
+
+  // Unphased tasks at the end, sorted by plannedStart
+  filteredTasks
+    .filter(t => !t.phaseId || !phases.find(ph => ph.id === t.phaseId))
+    .sort((a, b) => a.plannedStart.localeCompare(b.plannedStart))
+    .forEach(task => renderItems.push({ type: 'task', task }));
+
+  // Flat task-only list for the table below the Gantt
+  const orderedTasks = renderItems
+    .filter((i): i is { type: 'task'; task: (typeof tasks)[0] } => i.type === 'task')
+    .map(i => i.task);
 
   // ─── Panel helpers ───
   const openEdit = useCallback((task: Task) => {
@@ -331,20 +357,42 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
               >
                 <span className="text-xs font-medium text-gray-500">Název úkolu</span>
               </div>
-              {orderedTasks.map(task => {
-                const taskPhase = task.phaseId ? phases.find(ph => ph.id === task.phaseId) : undefined;
+              {renderItems.map((item, idx) => {
+                if (item.type === 'phase') {
+                  const { phase } = item;
+                  return (
+                    <div
+                      key={`phase-label-${phase.id}`}
+                      style={{
+                        height: ROW_HEIGHT,
+                        backgroundColor: phase.color + '28',
+                        borderBottom: '1px solid #e5e7eb',
+                        borderLeft: `4px solid ${phase.color}`,
+                        borderTop: idx > 0 ? `1px solid ${phase.color}50` : undefined,
+                      }}
+                      className="flex items-center px-3 gap-2"
+                    >
+                      <span
+                        className="text-xs font-bold uppercase tracking-wide truncate"
+                        style={{ color: phase.color }}
+                      >
+                        {phase.name}
+                      </span>
+                    </div>
+                  );
+                }
+                const { task } = item;
                 return (
                   <div
-                    key={task.id}
+                    key={`task-label-${task.id}`}
                     style={{
                       height: ROW_HEIGHT,
                       borderBottom: '1px solid #f1f5f9',
-                      borderLeft: taskPhase ? `4px solid ${taskPhase.color}` : '4px solid transparent',
                       backgroundColor: hoveredTaskId === task.id ? '#eff6ff' : undefined,
                       transition: 'background-color 0.1s',
                       cursor: lockedProjectId ? 'default' : 'pointer',
                     }}
-                    className="flex items-center px-3 gap-1.5 group"
+                    className="flex items-center pl-5 pr-3 gap-1.5 group"
                     onMouseEnter={() => setHoveredTaskId(task.id)}
                     onMouseLeave={() => setHoveredTaskId(null)}
                     onClick={() => openEdit(task)}
@@ -421,15 +469,34 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                   )
                 )}
 
-                {/* Task bars — flat list in taskOrder, matching Tasks page exactly */}
+                {/* Gantt bars — same order as renderItems (phase headers + tasks) */}
                 {(() => {
                   const bars: React.ReactNode[] = [];
 
-                  orderedTasks.forEach((task, rowIndex) => {
+                  renderItems.forEach((item, rowIndex) => {
+                    const y = HEADER_HEIGHT + rowIndex * ROW_HEIGHT;
+
+                    if (item.type === 'phase') {
+                      // Phase separator band on the timeline
+                      bars.push(
+                        <div
+                          key={`phase-bg-${item.phase.id}`}
+                          style={{
+                            position: 'absolute',
+                            top: y, left: 0, right: 0, height: ROW_HEIGHT,
+                            backgroundColor: item.phase.color + '18',
+                            borderBottom: '1px solid #e5e7eb',
+                            borderTop: rowIndex > 0 ? `1px solid ${item.phase.color}40` : undefined,
+                          }}
+                        />
+                      );
+                      return;
+                    }
+
+                    const { task } = item;
                     const x = dateToX(task.plannedStart);
                     const w = taskWidth(task.plannedStart, task.plannedEnd);
                     const color = getTaskColor(task);
-                    const y = HEADER_HEIGHT + rowIndex * ROW_HEIGHT;
                     const isHovered = hoveredTaskId === task.id;
 
                     bars.push(
