@@ -114,3 +114,19 @@ export const countWorkdays = (startStr: string, endStr: string): number => {
   }
   return Math.max(1, count);
 };
+
+// Calculate effective progress % for a task.
+// If autoProgress is not false, derives % from current date vs planned range.
+// Returns stored progressPercent when autoProgress is explicitly false.
+export const getEffectiveProgress = (
+  task: { autoProgress?: boolean; progressPercent: number; status: string; plannedStart: string; plannedEnd: string },
+  today: string
+): number => {
+  if (task.autoProgress === false) return task.progressPercent;
+  if (task.status === 'completed') return 100;
+  if (today <= task.plannedStart) return 0;
+  if (today >= task.plannedEnd) return 100;
+  const total = countWorkdays(task.plannedStart, task.plannedEnd);
+  const elapsed = countWorkdays(task.plannedStart, today);
+  return Math.min(99, Math.round(((elapsed - 1) / total) * 100));
+};

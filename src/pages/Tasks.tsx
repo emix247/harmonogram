@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
-import { formatDate, statusColor, statusLabel, priorityColor, generateId, nextWorkday, addWorkdays, countWorkdays } from '../utils/helpers';
+import { formatDate, statusColor, statusLabel, priorityColor, generateId, nextWorkday, addWorkdays, countWorkdays, getEffectiveProgress } from '../utils/helpers';
 import { Plus, Trash2, CheckSquare, Filter, Link2, X, ArrowRight, AlertCircle, Save, AlertTriangle, Clock, CheckCircle, TrendingUp, Search } from 'lucide-react';
 import type { Task, Priority, TaskStatus, Dependency, DependencyType } from '../types';
 
@@ -65,6 +65,7 @@ export default function Tasks() {
     responsiblePersonId: users[0]?.id || '',
     priority: 'medium',
     progressPercent: 0,
+    autoProgress: true,
     status: 'not_started',
     notes: '',
     attachments: [],
@@ -102,7 +103,7 @@ export default function Tasks() {
 
   const statsDelayed = allProjectTasks.filter(t => t.status === 'delayed' || (t.plannedEnd < today && t.status !== 'completed')).length;
   const statsAvgProgress = allProjectTasks.length
-    ? Math.round(allProjectTasks.reduce((s, t) => s + t.progressPercent, 0) / allProjectTasks.length)
+    ? Math.round(allProjectTasks.reduce((s, t) => s + getEffectiveProgress(t, today), 0) / allProjectTasks.length)
     : 0;
 
   const openAdd = useCallback(() => {
@@ -427,12 +428,19 @@ export default function Tasks() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 min-w-[80px]">
-                          <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                            <div className="h-1.5 rounded-full bg-blue-500 transition-all" style={{ width: `${task.progressPercent}%` }} />
-                          </div>
-                          <span className="text-xs text-gray-500 w-8 text-right">{task.progressPercent}%</span>
-                        </div>
+                        {(() => {
+                          const pct = getEffectiveProgress(task, today);
+                          const isAuto = task.autoProgress !== false;
+                          return (
+                            <div className="flex items-center gap-2 min-w-[80px]">
+                              <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                                <div className="h-1.5 rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="text-xs text-gray-500 w-8 text-right">{pct}%</span>
+                              {isAuto && <span className="text-[9px] text-blue-400 font-medium leading-none" title="Automatický postup dle termínů">auto</span>}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(task.status)}`}>
@@ -549,17 +557,43 @@ export default function Tasks() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Postup</label>
-                    <span className="text-sm font-bold text-blue-600">{form.progressPercent ?? 0}%</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">Auto</span>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, autoProgress: !(f.autoProgress ?? true) }))}
+                        className={`relative w-9 h-5 rounded-full transition-colors ${(form.autoProgress ?? true) ? 'bg-blue-500' : 'bg-gray-300'}`}
+                      >
+                        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(form.autoProgress ?? true) ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                      </button>
+                      <span className="text-sm font-bold text-blue-600">
+                        {(form.autoProgress ?? true)
+                          ? `${getEffectiveProgress({ ...form as Parameters<typeof getEffectiveProgress>[0] }, today)}%`
+                          : `${form.progressPercent ?? 0}%`}
+                      </span>
+                    </div>
                   </div>
-                  <input
-                    type="range" min={0} max={100} step={5}
-                    value={form.progressPercent ?? 0}
-                    onChange={e => setForm(f => ({ ...f, progressPercent: Number(e.target.value) }))}
-                    className="w-full accent-blue-600"
-                  />
-                  <div className="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${form.progressPercent ?? 0}%` }} />
-                  </div>
+                  {(form.autoProgress ?? true) ? (
+                    <div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full transition-all"
+                          style={{ width: `${getEffectiveProgress({ ...form as Parameters<typeof getEffectiveProgress>[0] }, today)}%` }} />
+                      </div>
+                      <p className="text-xs text-blue-500 mt-1">Počítá se automaticky z termínů úkolu</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        type="range" min={0} max={100} step={5}
+                        value={form.progressPercent ?? 0}
+                        onChange={e => setForm(f => ({ ...f, progressPercent: Number(e.target.value) }))}
+                        className="w-full accent-blue-600"
+                      />
+                      <div className="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${form.progressPercent ?? 0}%` }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -100,6 +100,7 @@ export interface Task {
   responsiblePersonId: string;
   priority: Priority;
   progressPercent: number;
+  autoProgress?: boolean;
   status: TaskStatus;
   notes: string;
   attachments: string[];
