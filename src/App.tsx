@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { useState, Component, type ErrorInfo, type ReactNode } from 'react';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import { useAppStore } from './store/appStore';
@@ -55,6 +55,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 
 export default function App() {
   const { currentPage } = useAppStore();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // ─── Detect share link: ?share=TOKEN ───
   const shareToken = new URLSearchParams(window.location.search).get('share');
@@ -66,10 +67,19 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <div className="flex-1 ml-64 flex flex-col min-h-screen overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-auto p-6">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="flex-1 md:ml-64 flex flex-col min-h-screen overflow-hidden">
+        <Header onMenuOpen={() => setSidebarOpen(true)} />
+        <main className="flex-1 overflow-auto p-4 md:p-6">
           <ErrorBoundary key={currentPage}>
             <PageComponent />
           </ErrorBoundary>

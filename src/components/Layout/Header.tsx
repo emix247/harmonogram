@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppStore } from '../../store/appStore';
-import { Bell, Search, Settings, CheckSquare, FolderOpen, Flag, AlertTriangle } from 'lucide-react';
+import { Bell, Search, Settings, CheckSquare, FolderOpen, Flag, AlertTriangle, Menu } from 'lucide-react';
 
 const pageTitles: Record<string, string> = {
   dashboard: 'Přehled projektů',
@@ -18,7 +18,11 @@ const pageTitles: Record<string, string> = {
   settings: 'Nastavení',
 };
 
-export default function Header() {
+interface Props {
+  onMenuOpen: () => void;
+}
+
+export default function Header({ onMenuOpen }: Props) {
   const { currentPage, conflicts, projects, setCurrentPage, tasks, milestones, risks } = useAppStore();
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -86,13 +90,22 @@ export default function Header() {
   ];
 
   return (
-    <header className="bg-white border-b border-gray-200 h-16 flex items-center px-6 gap-4">
-      <div className="flex-1">
-        <h2 className="text-xl font-semibold text-gray-800">{pageTitles[currentPage] || 'Stavební Planovač'}</h2>
+    <header className="bg-white border-b border-gray-200 h-14 md:h-16 flex items-center px-3 md:px-6 gap-2 md:gap-4">
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onMenuOpen}
+        className="md:hidden p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg shrink-0"
+        aria-label="Otevřít menu"
+      >
+        <Menu size={20} />
+      </button>
+
+      <div className="flex-1 min-w-0">
+        <h2 className="text-base md:text-xl font-semibold text-gray-800 truncate">{pageTitles[currentPage] || 'Stavební Planovač'}</h2>
       </div>
 
-      {/* Global Search */}
-      <div className="relative" ref={searchRef}>
+      {/* Global Search — hidden on mobile */}
+      <div className="relative hidden md:block" ref={searchRef}>
         <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2">
           <Search size={16} className="text-gray-400 shrink-0" />
           <input

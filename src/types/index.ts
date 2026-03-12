@@ -54,6 +54,13 @@ export interface Craft {
   color: string;
 }
 
+export interface ContractorContact {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+}
+
 export interface Contractor {
   id: string;
   name: string;
@@ -63,6 +70,8 @@ export interface Contractor {
   email: string;
   phone: string;
   crafts: string[];
+  notes?: string;
+  contacts?: ContractorContact[];
 }
 
 export interface Dependency {

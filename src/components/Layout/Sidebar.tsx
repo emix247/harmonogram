@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/appStore';
 import {
   LayoutDashboard, FolderOpen, GanttChartSquare, CheckSquare,
   Wrench, Flag, FileStack, AlertTriangle, BarChart3,
-  Smartphone, DollarSign, History, Settings, ChevronDown, Layers
+  Smartphone, DollarSign, History, Settings, ChevronDown, Layers, X
 } from 'lucide-react';
 
 const menuItems = [
@@ -28,7 +28,12 @@ const STATUS_DOT: Record<string, string> = {
   completed: 'bg-blue-400',
 };
 
-export default function Sidebar() {
+interface Props {
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ open, onClose }: Props) {
   const { currentPage, setCurrentPage, conflicts, tasks, risks, milestones, projects, currentProjectId, setCurrentProjectId } = useAppStore();
   const [projectOpen, setProjectOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -46,7 +51,7 @@ export default function Sidebar() {
 
   const selectedProject = projects.find(p => p.id === currentProjectId) ?? null;
 
-  // Close dropdown when clicking outside
+  // Close project dropdown when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
@@ -57,20 +62,43 @@ export default function Sidebar() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const handleNav = (id: string) => {
+    setCurrentPage(id);
+    onClose(); // close sidebar on mobile after navigation
+  };
+
   return (
-    <aside className="w-64 bg-gray-900 text-white flex flex-col h-screen fixed left-0 top-0 z-50">
-      {/* Logo */}
-      <div className="p-4 border-b border-gray-700">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center shrink-0">
-            <span className="text-white font-black text-sm">T</span>
+    <aside
+      className={`
+        w-72 md:w-64 bg-gray-900 text-white flex flex-col h-screen
+        fixed left-0 top-0 z-50
+        transform transition-transform duration-300 ease-in-out
+        ${open ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0
+      `}
+    >
+      {/* Logo + mobile close button */}
+      <div className="p-4 border-b border-gray-700 flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center shrink-0">
+              <span className="text-white font-black text-sm">T</span>
+            </div>
+            <div>
+              <h1 className="font-black text-base leading-tight tracking-tight">Tesgrup</h1>
+              <h2 className="font-black text-base leading-tight text-blue-400 tracking-tight">Development</h2>
+            </div>
           </div>
-          <div>
-            <h1 className="font-black text-base leading-tight tracking-tight">Tesgrup</h1>
-            <h2 className="font-black text-base leading-tight text-blue-400 tracking-tight">Development</h2>
-          </div>
+          <p className="text-gray-400 text-xs mt-1.5">v1.0 – Plánování staveb</p>
         </div>
-        <p className="text-gray-400 text-xs mt-1.5">v1.0 – Plánování staveb</p>
+        {/* Close button visible only on mobile */}
+        <button
+          onClick={onClose}
+          className="md:hidden text-gray-400 hover:text-white p-1 -mr-1"
+          aria-label="Zavřít menu"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       {/* Project Picker */}
@@ -102,7 +130,6 @@ export default function Sidebar() {
 
         {projectOpen && (
           <div className="mt-1.5 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl">
-            {/* All projects option */}
             <button
               onClick={() => { setCurrentProjectId(null); setProjectOpen(false); }}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors text-left ${
@@ -113,9 +140,7 @@ export default function Sidebar() {
             >
               <Layers size={13} className="shrink-0 text-gray-400" />
               <span className="flex-1 font-medium">Všechny projekty</span>
-              {!currentProjectId && (
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-              )}
+              {!currentProjectId && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />}
             </button>
 
             {projects.length > 0 && (
@@ -130,11 +155,7 @@ export default function Sidebar() {
                         : 'text-gray-300 hover:bg-gray-700/70 hover:text-white'
                     }`}
                   >
-                    {/* Color swatch */}
-                    <span
-                      className="w-3 h-3 rounded-full shrink-0 ring-1 ring-white/20"
-                      style={{ backgroundColor: p.color }}
-                    />
+                    <span className="w-3 h-3 rounded-full shrink-0 ring-1 ring-white/20" style={{ backgroundColor: p.color }} />
                     <span className="flex-1 font-medium truncate">{p.name}</span>
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[p.status] || 'bg-gray-500'}`} />
                   </button>
@@ -158,8 +179,8 @@ export default function Sidebar() {
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentPage(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
+              onClick={() => handleNav(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 md:py-2.5 text-left text-sm transition-colors ${
                 isActive
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-300 hover:bg-gray-800 hover:text-white'
@@ -180,7 +201,7 @@ export default function Sidebar() {
       {/* Footer: Settings + user info */}
       <div className="border-t border-gray-700">
         <button
-          onClick={() => setCurrentPage('settings')}
+          onClick={() => handleNav('settings')}
           className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
             currentPage === 'settings'
               ? 'bg-blue-600 text-white'

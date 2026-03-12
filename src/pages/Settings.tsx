@@ -3,7 +3,8 @@ import { useAppStore } from '../store/appStore';
 import { generateId } from '../utils/helpers';
 import {
   Users, Link2, Plus, Edit2, Trash2, Eye, EyeOff,
-  Copy, Check, X, Shield, AlertTriangle, Briefcase, Save, ExternalLink
+  Copy, Check, X, Shield, AlertTriangle, Briefcase, Save, ExternalLink,
+  Database, Download, Upload, RotateCcw, Clock
 } from 'lucide-react';
 import type { User, UserRole, ProjectShare, Role } from '../types';
 
@@ -40,7 +41,7 @@ export default function Settings() {
     addRole, updateRole, deleteRole,
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'shares'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'shares' | 'backup'>('users');
 
   // ─── User management ───
   const [showUserModal, setShowUserModal] = useState(false);
@@ -60,6 +61,97 @@ export default function Settings() {
 
   // ─── Share links ───
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // ─── Backup ───
+  const SNAPSHOTS_KEY = 'harmonogram-snapshots';
+  interface Snapshot { id: string; label: string; date: string; data: string; }
+  const [snapshots, setSnapshots] = useState<Snapshot[]>(() => {
+    try { return JSON.parse(localStorage.getItem(SNAPSHOTS_KEY) ?? '[]'); } catch { return []; }
+  });
+  const [importStatus, setImportStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+
+  const handleExport = () => {
+    const s = useAppStore.getState();
+    const payload = {
+      version: '1.0', exportedAt: new Date().toISOString(),
+      data: {
+        projects: s.projects, tasks: s.tasks, crafts: s.crafts,
+        contractors: s.contractors, milestones: s.milestones, risks: s.risks,
+        templates: s.templates, taskLogs: s.taskLogs, mobileReports: s.mobileReports,
+        conflicts: s.conflicts, phases: s.phases, objects: s.objects,
+        projectShares: s.projectShares, roles: s.roles, companies: s.companies,
+        users: s.users, currentProjectId: s.currentProjectId,
+      },
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `harmonogram-zaloha-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const json = JSON.parse(ev.target?.result as string);
+        const data = json.data ?? json;
+        useAppStore.setState(data);
+        setImportStatus('ok');
+        setTimeout(() => setImportStatus('idle'), 3000);
+      } catch {
+        setImportStatus('error');
+        setTimeout(() => setImportStatus('idle'), 3000);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const saveSnapshot = () => {
+    const s = useAppStore.getState();
+    const snap: Snapshot = {
+      id: generateId(),
+      label: `Záloha ${new Date().toLocaleString('cs-CZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}`,
+      date: new Date().toISOString(),
+      data: JSON.stringify({
+        projects: s.projects, tasks: s.tasks, crafts: s.crafts,
+        contractors: s.contractors, milestones: s.milestones, risks: s.risks,
+        templates: s.templates, taskLogs: s.taskLogs, mobileReports: s.mobileReports,
+        conflicts: s.conflicts, phases: s.phases, objects: s.objects,
+        projectShares: s.projectShares, roles: s.roles, companies: s.companies,
+        users: s.users, currentProjectId: s.currentProjectId,
+      }),
+    };
+    const updated = [snap, ...snapshots].slice(0, 10);
+    setSnapshots(updated);
+    localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(updated));
+  };
+
+  const restoreSnapshot = (snap: Snapshot) => {
+    if (!confirm(`Obnovit zálohu "${snap.label}"?\nAktuální data budou přepsána.`)) return;
+    useAppStore.setState(JSON.parse(snap.data));
+  };
+
+  const deleteSnapshot = (id: string) => {
+    const updated = snapshots.filter(s => s.id !== id);
+    setSnapshots(updated);
+    localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(updated));
+  };
+
+  const downloadSnapshot = (snap: Snapshot) => {
+    const blob = new Blob([snap.data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `harmonogram-${snap.label.replace(/[^a-z0-9]/gi, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   const [deleteShareConfirm, setDeleteShareConfirm] = useState<ProjectShare | null>(null);
 
   // helpers
@@ -186,6 +278,14 @@ export default function Settings() {
           }`}
         >
           <Link2 size={15} /> Sdílené harmonogramy
+        </button>
+        <button
+          onClick={() => setActiveTab('backup')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'backup' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Database size={15} /> Zálohy & Export
         </button>
       </div>
 
@@ -672,6 +772,136 @@ export default function Settings() {
               <button onClick={handleDeleteRole}
                 className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm hover:bg-red-700 font-medium">Smazat</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── TAB: BACKUP ─── */}
+      {activeTab === 'backup' && (
+        <div className="space-y-6">
+          {/* Export / Import */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Export */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <Download size={18} className="text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800">Export dat</h3>
+                  <p className="text-xs text-gray-500">Stáhnout veškerá data jako JSON soubor</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mb-4">
+                Exportuje všechny projekty, úkoly, řemesla, zhotovitele, milníky, rizika a nastavení do přenosného souboru.
+              </p>
+              <button
+                onClick={handleExport}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                <Download size={15} /> Exportovat zálohu
+              </button>
+            </div>
+
+            {/* Import */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                  <Upload size={18} className="text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800">Import dat</h3>
+                  <p className="text-xs text-gray-500">Obnovit data ze záložního souboru</p>
+                </div>
+              </div>
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                <p className="text-xs text-orange-700">
+                  <strong>Upozornění:</strong> Import přepíše veškerá aktuální data. Doporučujeme nejdříve vytvořit zálohu.
+                </p>
+              </div>
+              {importStatus === 'ok' && (
+                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3 text-xs text-green-700 flex items-center gap-2">
+                  <Check size={13} /> Data úspěšně obnovena!
+                </div>
+              )}
+              {importStatus === 'error' && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-xs text-red-700 flex items-center gap-2">
+                  <X size={13} /> Chyba při čtení souboru. Zkontrolujte formát.
+                </div>
+              )}
+              <label className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors cursor-pointer">
+                <Upload size={15} /> Importovat ze souboru
+                <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+              </label>
+            </div>
+          </div>
+
+          {/* Manual snapshots */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                  <Clock size={16} className="text-gray-400" /> Rychlé zálohy
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">Uloženo v prohlížeči (max 10) · Rychlé obnovení jedním klikem</p>
+              </div>
+              <button
+                onClick={saveSnapshot}
+                className="flex items-center gap-1.5 bg-gray-800 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-700"
+              >
+                <Database size={14} /> Uložit zálohu nyní
+              </button>
+            </div>
+
+            {snapshots.length === 0 ? (
+              <div className="py-12 text-center text-gray-400">
+                <Database size={36} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm">Žádné zálohy. Klikněte „Uložit zálohu nyní" pro první záznam.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {snapshots.map((snap) => {
+                  const d = new Date(snap.date);
+                  const sizeKB = Math.round(snap.data.length / 1024);
+                  return (
+                    <div key={snap.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50">
+                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                        <Database size={14} className="text-gray-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{snap.label}</p>
+                        <p className="text-xs text-gray-400">
+                          {d.toLocaleDateString('cs-CZ')} {d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })} · {sizeKB} kB
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => restoreSnapshot(snap)}
+                          title="Obnovit tuto zálohu"
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
+                        >
+                          <RotateCcw size={12} /> Obnovit
+                        </button>
+                        <button
+                          onClick={() => downloadSnapshot(snap)}
+                          title="Stáhnout jako soubor"
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-gray-200"
+                        >
+                          <Download size={13} />
+                        </button>
+                        <button
+                          onClick={() => deleteSnapshot(snap.id)}
+                          title="Smazat zálohu"
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg border border-gray-200"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
