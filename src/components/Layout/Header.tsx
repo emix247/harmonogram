@@ -19,7 +19,7 @@ const pageTitles: Record<string, string> = {
 };
 
 export default function Header() {
-  const { currentPage, conflicts, projects, currentProjectId, setCurrentProjectId, setCurrentPage, tasks, milestones, risks } = useAppStore();
+  const { currentPage, conflicts, projects, setCurrentPage, tasks, milestones, risks } = useAppStore();
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -132,17 +132,6 @@ export default function Header() {
           </div>
         )}
       </div>
-
-      <select
-        value={currentProjectId || ''}
-        onChange={(e) => setCurrentProjectId(e.target.value || null)}
-        className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white outline-none"
-      >
-        <option value="">Všechny projekty</option>
-        {projects.map((p) => (
-          <option key={p.id} value={p.id}>{p.name}</option>
-        ))}
-      </select>
 
       {/* Bell with notifications dropdown */}
       <div className="relative" ref={bellRef}>

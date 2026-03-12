@@ -1,8 +1,9 @@
+import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store/appStore';
 import {
   LayoutDashboard, FolderOpen, GanttChartSquare, CheckSquare,
   Wrench, Flag, FileStack, AlertTriangle, BarChart3,
-  Smartphone, DollarSign, History, Settings
+  Smartphone, DollarSign, History, Settings, ChevronDown, Layers
 } from 'lucide-react';
 
 const menuItems = [
@@ -20,8 +21,17 @@ const menuItems = [
   { id: 'history', icon: History, label: 'Historie' },
 ];
 
+const STATUS_DOT: Record<string, string> = {
+  active: 'bg-green-400',
+  planning: 'bg-yellow-400',
+  paused: 'bg-orange-400',
+  completed: 'bg-blue-400',
+};
+
 export default function Sidebar() {
-  const { currentPage, setCurrentPage, conflicts, tasks, risks, milestones } = useAppStore();
+  const { currentPage, setCurrentPage, conflicts, tasks, risks, milestones, projects, currentProjectId, setCurrentProjectId } = useAppStore();
+  const [projectOpen, setProjectOpen] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const overdueTasks = tasks.filter(t => t.status !== 'completed' && t.plannedEnd < today).length;
@@ -33,6 +43,19 @@ export default function Sidebar() {
     risks: openRisks + conflicts.length,
     milestones: overdueMilestones,
   };
+
+  const selectedProject = projects.find(p => p.id === currentProjectId) ?? null;
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
+        setProjectOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   return (
     <aside className="w-64 bg-gray-900 text-white flex flex-col h-screen fixed left-0 top-0 z-50">
@@ -48,6 +71,82 @@ export default function Sidebar() {
           </div>
         </div>
         <p className="text-gray-400 text-xs mt-1.5">v1.0 – Plánování staveb</p>
+      </div>
+
+      {/* Project Picker */}
+      <div className="px-3 pt-3 pb-2 border-b border-gray-700/60" ref={dropRef}>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 px-1">Aktivní projekt</p>
+        <button
+          onClick={() => setProjectOpen(o => !o)}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-gray-600 transition-all text-left group"
+        >
+          {selectedProject ? (
+            <>
+              <span
+                className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white/10"
+                style={{ backgroundColor: selectedProject.color }}
+              />
+              <span className="flex-1 text-sm font-medium text-white truncate">{selectedProject.name}</span>
+            </>
+          ) : (
+            <>
+              <Layers size={13} className="text-gray-400 shrink-0" />
+              <span className="flex-1 text-sm text-gray-300">Všechny projekty</span>
+            </>
+          )}
+          <ChevronDown
+            size={14}
+            className={`text-gray-400 shrink-0 transition-transform ${projectOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+
+        {projectOpen && (
+          <div className="mt-1.5 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl">
+            {/* All projects option */}
+            <button
+              onClick={() => { setCurrentProjectId(null); setProjectOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors text-left ${
+                !currentProjectId
+                  ? 'bg-blue-600/30 text-blue-300'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              <Layers size={13} className="shrink-0 text-gray-400" />
+              <span className="flex-1 font-medium">Všechny projekty</span>
+              {!currentProjectId && (
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+              )}
+            </button>
+
+            {projects.length > 0 && (
+              <div className="border-t border-gray-700/60">
+                {projects.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setCurrentProjectId(p.id); setProjectOpen(false); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors text-left ${
+                      currentProjectId === p.id
+                        ? 'bg-gray-700 text-white'
+                        : 'text-gray-300 hover:bg-gray-700/70 hover:text-white'
+                    }`}
+                  >
+                    {/* Color swatch */}
+                    <span
+                      className="w-3 h-3 rounded-full shrink-0 ring-1 ring-white/20"
+                      style={{ backgroundColor: p.color }}
+                    />
+                    <span className="flex-1 font-medium truncate">{p.name}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[p.status] || 'bg-gray-500'}`} />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {projects.length === 0 && (
+              <p className="px-3 py-3 text-xs text-gray-500 italic">Žádné projekty</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Nav */}
