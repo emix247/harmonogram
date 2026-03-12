@@ -870,7 +870,7 @@ export const useAppStore = create<AppState>()(
       objects: sampleObjects,
       projectShares: [],
       projectCraftAssignments: [],
-      taskOrder: sampleTasks.map(t => t.id),
+      taskOrder: [...sampleTasks].sort((a, b) => a.plannedStart.localeCompare(b.plannedStart)).map(t => t.id),
       roles: defaultRoles,
 
       currentProjectId: 'p1',

@@ -78,7 +78,7 @@ interface GanttSchedulerProps {
 export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSchedulerProps = {}) {
   const {
     tasks, projects, phases, currentProjectId, milestones, crafts, objects, users,
-    addTask, updateTask, deleteTask, taskOrder,
+    addTask, updateTask, deleteTask,
   } = useAppStore();
 
   const [zoom, setZoom] = useState<ZoomLevel>('month');
@@ -155,18 +155,10 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
     return '#94a3b8';
   };
 
-  // Sort helper: respects persisted taskOrder from Tasks page
-  const sortByTaskOrder = (a: (typeof tasks)[0], b: (typeof tasks)[0]) => {
-    const ai = taskOrder.indexOf(a.id);
-    const bi = taskOrder.indexOf(b.id);
-    if (ai === -1 && bi === -1) return 0;
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  };
-
-  // Flat list sorted by taskOrder — identical ordering to the Tasks page
-  const orderedTasks = [...filteredTasks].sort(sortByTaskOrder);
+  // Flat list sorted by plannedStart — matches the Tasks page default sort
+  const orderedTasks = [...filteredTasks].sort((a, b) =>
+    a.plannedStart.localeCompare(b.plannedStart)
+  );
 
   // ─── Panel helpers ───
   const openEdit = useCallback((task: Task) => {
