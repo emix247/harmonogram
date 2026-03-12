@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store/appStore';
 import {
   LayoutDashboard, FolderOpen, GanttChartSquare, CheckSquare,
-  Wrench, Flag, FileStack, AlertTriangle, BarChart3,
+  Building2, Flag, FileStack, AlertTriangle, BarChart3,
   Smartphone, DollarSign, History, Settings, ChevronDown, Layers, X, LogOut
 } from 'lucide-react';
 
@@ -11,7 +11,7 @@ const menuItems = [
   { id: 'projects', icon: FolderOpen, label: 'Projekty' },
   { id: 'gantt', icon: GanttChartSquare, label: 'Harmonogram práce' },
   { id: 'tasks', icon: CheckSquare, label: 'Úkoly' },
-  { id: 'crafts', icon: Wrench, label: 'Řemesla & Zhotovitelé' },
+  { id: 'crafts', icon: Building2, label: 'Zhotovitelé' },
   { id: 'milestones', icon: Flag, label: 'Milníky' },
   { id: 'templates', icon: FileStack, label: 'Šablony' },
   { id: 'risks', icon: AlertTriangle, label: 'Řízení rizik' },

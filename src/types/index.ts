@@ -77,6 +77,7 @@ export interface Contractor {
   email: string;
   phone: string;
   crafts: string[];
+  tags?: string[];
   notes?: string;
   contacts?: ContractorContact[];
 }

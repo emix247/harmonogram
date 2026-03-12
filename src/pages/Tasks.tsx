@@ -25,12 +25,11 @@ const priorityLabels: Record<Priority, string> = {
 
 export default function Tasks() {
   const {
-    tasks, projects, crafts, contractors, users, phases, objects, currentProjectId,
-    addTask, updateTask, deleteTask, projectCraftAssignments, taskOrder, setTaskOrder,
+    tasks, projects, contractors, users, phases, objects, currentProjectId,
+    addTask, updateTask, deleteTask, taskOrder, setTaskOrder,
   } = useAppStore();
 
   const [filterStatus, setFilterStatus] = useState('all');
-  const [filterCraft, setFilterCraft] = useState('all');
   const [filterProject, setFilterProject] = useState(currentProjectId || 'all');
   const [searchText, setSearchText] = useState('');
   const [sortCol, setSortCol] = useState<'name' | 'plannedStart' | 'plannedEnd' | 'status' | 'priority' | 'progressPercent'>('plannedStart');
@@ -90,7 +89,6 @@ export default function Tasks() {
   const filteredTasks = tasks.filter(t => {
     if (filterProject !== 'all' && t.projectId !== filterProject) return false;
     if (filterStatus !== 'all' && t.status !== filterStatus) return false;
-    if (filterCraft !== 'all' && t.craftId !== filterCraft) return false;
     if (searchText.trim() && !t.name.toLowerCase().includes(searchText.trim().toLowerCase())) return false;
     return true;
   });
@@ -351,14 +349,6 @@ export default function Tasks() {
               <option value="delayed">Zpožděno</option>
               <option value="at_risk">Riziko</option>
             </select>
-            <select
-              value={filterCraft}
-              onChange={e => setFilterCraft(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-400"
-            >
-              <option value="all">Všechna řemesla</option>
-              {crafts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
             <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 ml-1">
               <Search size={13} className="text-gray-400 shrink-0" />
               <input
@@ -417,7 +407,7 @@ export default function Tasks() {
                   {([
                     ['name', 'Název úkolu'],
                     [null, 'Projekt / Objekt'],
-                    [null, 'Řemeslo'],
+                    [null, 'Zhotovitel'],
                     [null, 'Navazuje na'],
                     ['plannedStart', 'Zahájení'],
                     ['plannedEnd', 'Dokončení'],
@@ -442,7 +432,7 @@ export default function Tasks() {
               <tbody className="divide-y divide-gray-50">
                 {visibleTasks.map((task, idx) => {
                   const project = projects.find(p => p.id === task.projectId);
-                  const craft = crafts.find(c => c.id === task.craftId);
+                  const contractor = contractors.find(c => c.id === task.contractorId);
                   const obj = objects.find(o => o.id === task.objectId);
                   const isOverdue = task.plannedEnd < today && task.status !== 'completed';
                   const preds = task.predecessors ?? [];
@@ -511,10 +501,10 @@ export default function Tasks() {
                         {obj && <p className="text-gray-400 text-xs">{obj.name}</p>}
                       </td>
                       <td className="px-4 py-3">
-                        {craft && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs text-white" style={{ backgroundColor: craft.color }}>
-                            {craft.name}
-                          </span>
+                        {contractor ? (
+                          <span className="text-xs text-gray-700 font-medium">{contractor.name}</span>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -751,26 +741,6 @@ export default function Tasks() {
                       {getProjectObjects(form.projectId || '').map(o => (
                         <option key={o.id} value={o.id}>{o.name}</option>
                       ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Řemeslo</label>
-                    <select
-                      value={form.craftId || ''}
-                      onChange={e => {
-                        const craftId = e.target.value;
-                        const craft = crafts.find(c => c.id === craftId);
-                        // Project-specific assignment takes priority over craft default
-                        const assignment = projectCraftAssignments.find(
-                          a => a.projectId === form.projectId && a.craftId === craftId
-                        );
-                        const contractorId = assignment?.contractorId || craft?.contractorId || '';
-                        setForm(f => ({ ...f, craftId, contractorId }));
-                      }}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
-                    >
-                      <option value="">— bez řemesla —</option>
-                      {crafts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div>

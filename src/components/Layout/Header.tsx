@@ -7,7 +7,7 @@ const pageTitles: Record<string, string> = {
   projects: 'Projekty',
   gantt: 'Harmonogram práce',
   tasks: 'Správa úkolů',
-  crafts: 'Řemesla & Zhotovitelé',
+  crafts: 'Zhotovitelé',
   milestones: 'Milníky',
   templates: 'Projektové šablony',
   risks: 'Řízení rizik',

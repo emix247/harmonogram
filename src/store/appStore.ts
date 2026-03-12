@@ -122,6 +122,7 @@ const sampleContractors: Contractor[] = [
     email: 'horak@zemine.cz',
     phone: '+420 775 111 222',
     crafts: ['craft1'],
+    tags: ['Zemní práce', 'Výkopové práce', 'Terénní úpravy'],
   },
   {
     id: 'con2',
@@ -132,6 +133,7 @@ const sampleContractors: Contractor[] = [
     email: 'prochazka@zednictvi.cz',
     phone: '+420 774 333 444',
     crafts: ['craft2'],
+    tags: ['Zdění', 'Omítky', 'Podlahy', 'Malba a tapety'],
   },
   {
     id: 'con3',
@@ -142,6 +144,7 @@ const sampleContractors: Contractor[] = [
     email: 'kovar@tesarstvi.cz',
     phone: '+420 773 555 666',
     crafts: ['craft3'],
+    tags: ['Tesařství', 'Pokrývačství', 'Lešenářství', 'Bednění'],
   },
   {
     id: 'con4',
@@ -152,6 +155,7 @@ const sampleContractors: Contractor[] = [
     email: 'maly@elektro.cz',
     phone: '+420 772 777 888',
     crafts: ['craft5'],
+    tags: ['Elektroinstalace', 'Slaboproud', 'Instalace (ZTI)', 'Vodo-topo'],
   },
 ];
 
