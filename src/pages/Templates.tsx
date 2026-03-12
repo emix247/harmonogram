@@ -16,6 +16,9 @@ type TemplateTask = {
   plannedDuration: number;
   craftId: string;
   plannedCost: number;
+  phaseName?: string;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  predecessorNames?: { name: string; type: string; lag: number }[];
 };
 
 type TemplateForm = {
@@ -44,6 +47,20 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Ostatní': 'bg-green-100 text-green-700',
 };
 
+const PRIORITY_COLORS: Record<string, string> = {
+  critical: 'bg-red-100 text-red-700',
+  high: 'bg-orange-100 text-orange-700',
+  medium: 'bg-yellow-100 text-yellow-700',
+  low: 'bg-green-100 text-green-700',
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+  critical: 'Kritická',
+  high: 'Vysoká',
+  medium: 'Střední',
+  low: 'Nízká',
+};
+
 const EMPTY_FORM: TemplateForm = {
   name: '',
   description: '',
@@ -60,6 +77,9 @@ const EMPTY_TASK: TemplateTask = {
   plannedDuration: 7,
   craftId: '',
   plannedCost: 0,
+  phaseName: '',
+  priority: 'medium',
+  predecessorNames: [],
 };
 
 // ── Pomocník pro součet délky ─────────────────────────────────────────────────
@@ -122,8 +142,11 @@ export default function Templates() {
         name: t.name || '',
         description: t.description || '',
         plannedDuration: t.plannedDuration || 7,
-        craftId: t.craftId || '',
-        plannedCost: t.plannedCost || 0,
+        craftId: (t as any).craftId || '',
+        plannedCost: (t as any).plannedCost || 0,
+        phaseName: (t as any).phaseName || '',
+        priority: (t as any).priority || 'medium',
+        predecessorNames: (t as any).predecessorNames || [],
       })),
     });
     setEditingTaskIndex(null);
@@ -154,7 +177,10 @@ export default function Templates() {
         plannedDuration: t.plannedDuration,
         craftId: t.craftId,
         plannedCost: t.plannedCost || undefined,
-      })),
+        phaseName: t.phaseName || undefined,
+        priority: t.priority || undefined,
+        predecessorNames: t.predecessorNames?.length ? t.predecessorNames : undefined,
+      } as any)),
     };
     if (editingTemplate) {
       updateTemplate(editingTemplate.id, payload);
@@ -444,19 +470,32 @@ export default function Templates() {
                           {/* Název */}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{task.name}</p>
-                            {task.craftId && (
-                              <div className="flex items-center gap-1 mt-0.5">
-                                {(() => {
-                                  const craft = crafts.find(c => c.id === task.craftId);
-                                  return craft ? (
-                                    <span className="text-xs px-1.5 py-0.5 rounded-full text-white"
-                                      style={{ backgroundColor: craft.color }}>
-                                      {craft.name}
-                                    </span>
-                                  ) : null;
-                                })()}
-                              </div>
-                            )}
+                            <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                              {task.phaseName && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
+                                  {task.phaseName}
+                                </span>
+                              )}
+                              {task.priority && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_COLORS[task.priority] || ''}`}>
+                                  {PRIORITY_LABELS[task.priority] || task.priority}
+                                </span>
+                              )}
+                              {task.craftId && (() => {
+                                const craft = crafts.find(c => c.id === task.craftId);
+                                return craft ? (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full text-white"
+                                    style={{ backgroundColor: craft.color }}>
+                                    {craft.name}
+                                  </span>
+                                ) : null;
+                              })()}
+                              {!!task.predecessorNames?.length && (
+                                <span className="text-xs text-gray-400">
+                                  → {task.predecessorNames.map(p => p.name).join(', ')}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* Délka */}
@@ -498,6 +537,31 @@ export default function Templates() {
                                 autoFocus
                                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Fáze</label>
+                              <input
+                                type="text"
+                                value={taskDraft.phaseName || ''}
+                                onChange={e => setTaskDraft(d => ({ ...d, phaseName: e.target.value }))}
+                                placeholder="např. Hrubá stavba"
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Priorita</label>
+                              <select
+                                value={taskDraft.priority || 'medium'}
+                                onChange={e => setTaskDraft(d => ({ ...d, priority: e.target.value as TemplateTask['priority'] }))}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="low">Nízká</option>
+                                <option value="medium">Střední</option>
+                                <option value="high">Vysoká</option>
+                                <option value="critical">Kritická</option>
+                              </select>
                             </div>
 
                             <div>
@@ -584,6 +648,27 @@ export default function Templates() {
                             autoFocus
                             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Fáze</label>
+                          <input type="text" value={taskDraft.phaseName || ''}
+                            onChange={e => setTaskDraft(d => ({ ...d, phaseName: e.target.value }))}
+                            placeholder="např. Hrubá stavba"
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Priorita</label>
+                          <select value={taskDraft.priority || 'medium'}
+                            onChange={e => setTaskDraft(d => ({ ...d, priority: e.target.value as TemplateTask['priority'] }))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="low">Nízká</option>
+                            <option value="medium">Střední</option>
+                            <option value="high">Vysoká</option>
+                            <option value="critical">Kritická</option>
+                          </select>
                         </div>
 
                         <div>
@@ -870,11 +955,28 @@ export default function Templates() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800">{task.name}</p>
                       {task.description && <p className="text-xs text-gray-400 truncate">{task.description}</p>}
-                      {craft && (
-                        <span className="text-xs px-2 py-0.5 rounded-full text-white mt-0.5 inline-block"
-                          style={{ backgroundColor: craft.color }}>
-                          {craft.name}
-                        </span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {(task as any).phaseName && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
+                            {(task as any).phaseName}
+                          </span>
+                        )}
+                        {(task as any).priority && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_COLORS[(task as any).priority] || ''}`}>
+                            {PRIORITY_LABELS[(task as any).priority] || (task as any).priority}
+                          </span>
+                        )}
+                        {craft && (
+                          <span className="text-xs px-2 py-0.5 rounded-full text-white"
+                            style={{ backgroundColor: craft.color }}>
+                            {craft.name}
+                          </span>
+                        )}
+                      </div>
+                      {!!((task as any).predecessorNames?.length) && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          → {(task as any).predecessorNames.map((p: any) => `${p.name}${p.lag ? ` +${p.lag}d` : ''} (${p.type})`).join(', ')}
+                        </p>
                       )}
                     </div>
                     <div className="text-right text-sm text-gray-600 flex-shrink-0">
