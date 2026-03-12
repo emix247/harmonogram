@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   Project, Task, Craft, Contractor, Milestone, Risk, Template,
-  TaskLog, MobileReport, ConflictAlert, Company, User, Phase, ProjectObject, ProjectShare, Role, ProjectCraftAssignment
+  TaskLog, MobileReport, ConflictAlert, Company, User, Phase, ProjectObject, ProjectShare, Role, ProjectCraftAssignment,
+  NotificationSettings, NotificationRecord, PendingNotification
 } from '../types';
 
 // =================== DEPENDENCY CASCADE HELPERS ===================
@@ -849,6 +850,16 @@ interface AppState {
 
   // Log Actions
   addLog: (log: TaskLog) => void;
+
+  // Notification Actions
+  notificationSettings: NotificationSettings[];
+  notificationRecords: NotificationRecord[];
+  pendingNotifications: PendingNotification[];
+  updateNotificationSettings: (projectId: string, enabled: boolean) => void;
+  addNotificationRecord: (record: NotificationRecord) => void;
+  updateNotificationRecord: (id: string, updates: Partial<NotificationRecord>) => void;
+  clearPendingNotifications: () => void;
+  syncConfirmations: (confirmed: Record<string, string>) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -872,6 +883,9 @@ export const useAppStore = create<AppState>()(
       projectCraftAssignments: [],
       taskOrder: [...sampleTasks].sort((a, b) => a.plannedStart.localeCompare(b.plannedStart)).map(t => t.id),
       roles: defaultRoles,
+      notificationSettings: [{ projectId: '*', enabled: true }],
+      notificationRecords: [],
+      pendingNotifications: [],
 
       currentProjectId: 'p1',
       currentPage: 'dashboard',
@@ -900,7 +914,33 @@ export const useAppStore = create<AppState>()(
             updates.plannedStart !== undefined ||
             updates.predecessors !== undefined;
           if (datesChanged) {
-            return { tasks: cascadeTaskDates(id, updatedList) };
+            const cascaded = cascadeTaskDates(id, updatedList);
+
+            // Detect which tasks (other than the directly edited one) had their start shifted
+            const pending: PendingNotification[] = [];
+            for (const newTask of cascaded) {
+              if (newTask.id === id) continue; // skip the directly edited task
+              const oldTask = state.tasks.find(t => t.id === newTask.id);
+              if (!oldTask) continue;
+              if (newTask.plannedStart !== oldTask.plannedStart) {
+                const oldD = new Date(oldTask.plannedStart).getTime();
+                const newD = new Date(newTask.plannedStart).getTime();
+                const shiftDays = Math.round((newD - oldD) / 86400000);
+                pending.push({
+                  taskId: newTask.id,
+                  oldStart: oldTask.plannedStart,
+                  newStart: newTask.plannedStart,
+                  oldEnd: oldTask.plannedEnd,
+                  newEnd: newTask.plannedEnd,
+                  shiftDays,
+                });
+              }
+            }
+
+            return {
+              tasks: cascaded,
+              pendingNotifications: pending.length > 0 ? pending : state.pendingNotifications,
+            };
           }
           return { tasks: updatedList };
         }),
@@ -981,6 +1021,37 @@ export const useAppStore = create<AppState>()(
       deleteRole: (id) => set((state) => ({ roles: state.roles.filter((r) => r.id !== id) })),
 
       addLog: (log) => set((state) => ({ taskLogs: [...state.taskLogs, log] })),
+
+      // Notification actions
+      updateNotificationSettings: (projectId, enabled) =>
+        set((state) => {
+          const existing = state.notificationSettings.find(s => s.projectId === projectId);
+          if (existing) {
+            return {
+              notificationSettings: state.notificationSettings.map(s =>
+                s.projectId === projectId ? { ...s, enabled } : s
+              ),
+            };
+          }
+          return { notificationSettings: [...state.notificationSettings, { projectId, enabled }] };
+        }),
+      addNotificationRecord: (record) =>
+        set((state) => ({ notificationRecords: [record, ...state.notificationRecords] })),
+      updateNotificationRecord: (id, updates) =>
+        set((state) => ({
+          notificationRecords: state.notificationRecords.map(r => r.id === id ? { ...r, ...updates } : r),
+        })),
+      clearPendingNotifications: () => set({ pendingNotifications: [] }),
+      syncConfirmations: (confirmed) =>
+        set((state) => ({
+          notificationRecords: state.notificationRecords.map(r => {
+            const confirmedAt = confirmed[r.token];
+            if (confirmedAt && r.status !== 'confirmed') {
+              return { ...r, status: 'confirmed' as const, confirmedAt };
+            }
+            return r;
+          }),
+        })),
     }),
     { name: 'construction-planner-store' }
   )

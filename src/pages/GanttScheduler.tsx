@@ -79,7 +79,7 @@ interface GanttSchedulerProps {
 export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSchedulerProps = {}) {
   const {
     tasks, projects, phases, currentProjectId, milestones, crafts, objects, users,
-    addTask, updateTask, deleteTask,
+    addTask, updateTask, deleteTask, notificationRecords,
   } = useAppStore();
 
   const [zoom, setZoom] = useState<ZoomLevel>('month');
@@ -659,6 +659,15 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                       <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(task.status)}`}>
                         {statusLabel(task.status)}
                       </span>
+                      {(() => {
+                        const notif = notificationRecords.find(r => r.taskId === task.id);
+                        if (!notif) return null;
+                        if (notif.status === 'confirmed')
+                          return <div className="mt-1"><span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-green-100 text-green-700">✓ Odsouhlaseno</span></div>;
+                        if (notif.status === 'sent')
+                          return <div className="mt-1"><span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-orange-100 text-orange-600">⏳ Čeká</span></div>;
+                        return null;
+                      })()}
                     </td>
                   </tr>
                 );

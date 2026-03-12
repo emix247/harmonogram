@@ -230,3 +230,41 @@ export interface ConflictAlert {
   severity: 'warning' | 'error';
   date: string;
 }
+
+// =================== NOTIFICATION TYPES ===================
+
+export interface NotificationSettings {
+  projectId: string;   // '*' means all projects
+  enabled: boolean;
+}
+
+export type NotificationStatus = 'sent' | 'confirmed' | 'error';
+
+export interface NotificationRecord {
+  id: string;
+  taskId: string;
+  projectId: string;
+  taskName: string;
+  contractorId: string;
+  contractorName: string;
+  contractorEmail: string;
+  oldStart: string;
+  newStart: string;
+  oldEnd: string;
+  newEnd: string;
+  shiftDays: number;
+  token: string;
+  sentAt: string;
+  status: NotificationStatus;
+  confirmedAt?: string;
+}
+
+/** Cascade-shifted tasks waiting to be notified — produced by updateTask, consumed by NotificationProcessor */
+export interface PendingNotification {
+  taskId: string;
+  oldStart: string;
+  newStart: string;
+  oldEnd: string;
+  newEnd: string;
+  shiftDays: number;
+}

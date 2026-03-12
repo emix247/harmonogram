@@ -1,4 +1,4 @@
-import { useState, Component, type ErrorInfo, type ReactNode } from 'react';
+import { useState, useEffect, Component, type ErrorInfo, type ReactNode } from 'react';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import Login from './pages/Login';
@@ -17,6 +17,10 @@ import Cashflow from './pages/Cashflow';
 import HistoryLog from './pages/HistoryLog';
 import Settings from './pages/Settings';
 import PublicView from './pages/PublicView';
+import Notifikace from './pages/Notifikace';
+import type { NotificationRecord } from './types';
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 const pages: Record<string, React.ComponentType> = {
   dashboard: Dashboard,
@@ -32,7 +36,136 @@ const pages: Record<string, React.ComponentType> = {
   cashflow: Cashflow,
   history: HistoryLog,
   settings: Settings,
+  notifications: Notifikace,
 };
+
+/**
+ * Watches `pendingNotifications` in the store, calls /api/notify for each,
+ * stores results as NotificationRecord entries, then clears the queue.
+ */
+function NotificationProcessor() {
+  const {
+    pendingNotifications, clearPendingNotifications,
+    tasks, crafts, contractors, projects,
+    notificationSettings, addNotificationRecord,
+  } = useAppStore();
+
+  useEffect(() => {
+    if (pendingNotifications.length === 0) return;
+
+    const globalEnabled = notificationSettings.find(s => s.projectId === '*')?.enabled ?? true;
+
+    // Build notification payloads
+    const notifications: Array<{
+      taskId: string; taskName: string; projectId: string; projectName: string;
+      contractorId: string; contractorName: string; contractorEmail: string;
+      oldStart: string; newStart: string; oldEnd: string; newEnd: string; shiftDays: number;
+    }> = [];
+
+    for (const pending of pendingNotifications) {
+      const task = tasks.find(t => t.id === pending.taskId);
+      if (!task) continue;
+
+      // Check if notifications are enabled for this project
+      const perProject = notificationSettings.find(s => s.projectId === task.projectId);
+      const enabled = perProject !== undefined ? perProject.enabled : globalEnabled;
+      if (!enabled) continue;
+
+      const craft = crafts.find(c => c.id === task.craftId);
+      const contractorId = task.contractorId || craft?.contractorId || '';
+      const contractor = contractors.find(c => c.id === contractorId);
+      if (!contractor?.email) continue; // skip if no email
+
+      const project = projects.find(p => p.id === task.projectId);
+
+      notifications.push({
+        taskId: task.id,
+        taskName: task.name,
+        projectId: task.projectId,
+        projectName: project?.name ?? task.projectId,
+        contractorId,
+        contractorName: contractor.name,
+        contractorEmail: contractor.email,
+        oldStart: pending.oldStart,
+        newStart: pending.newStart,
+        oldEnd: pending.oldEnd,
+        newEnd: pending.newEnd,
+        shiftDays: pending.shiftDays,
+      });
+    }
+
+    // Clear pending immediately to avoid re-processing
+    clearPendingNotifications();
+
+    if (notifications.length === 0) return;
+
+    // Call API
+    fetch(`${API_BASE}/api/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notifications }),
+    })
+      .then(r => r.json())
+      .then((data: { results: Array<{ taskId: string; token: string; success: boolean; error?: string }> }) => {
+        const now = new Date().toISOString();
+        for (const result of data.results) {
+          const n = notifications.find(n => n.taskId === result.taskId);
+          if (!n) continue;
+          const record: NotificationRecord = {
+            id: crypto.randomUUID(),
+            taskId: n.taskId,
+            projectId: n.projectId,
+            taskName: n.taskName,
+            contractorId: n.contractorId,
+            contractorName: n.contractorName,
+            contractorEmail: n.contractorEmail,
+            oldStart: n.oldStart,
+            newStart: n.newStart,
+            oldEnd: n.oldEnd,
+            newEnd: n.newEnd,
+            shiftDays: n.shiftDays,
+            token: result.token,
+            sentAt: now,
+            status: result.success ? 'sent' : 'error',
+          };
+          addNotificationRecord(record);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to send notifications:', err);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingNotifications]);
+
+  return null;
+}
+
+/**
+ * On app load, syncs confirmation statuses for any pending records.
+ */
+function ConfirmationSyncer() {
+  const { notificationRecords, syncConfirmations } = useAppStore();
+
+  useEffect(() => {
+    const sentRecords = notificationRecords.filter(r => r.status === 'sent');
+    if (sentRecords.length === 0) return;
+
+    const tokens = sentRecords.map(r => r.token).join(',');
+    fetch(`${API_BASE}/api/confirmations?tokens=${encodeURIComponent(tokens)}`)
+      .then(r => r.json())
+      .then((data: Record<string, string | null>) => {
+        const confirmed: Record<string, string> = {};
+        for (const [token, at] of Object.entries(data)) {
+          if (at) confirmed[token] = at;
+        }
+        if (Object.keys(confirmed).length > 0) syncConfirmations(confirmed);
+      })
+      .catch(() => { /* silent — no network access */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  return null;
+}
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -73,6 +206,10 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Background notification processors — render nothing visible */}
+      <NotificationProcessor />
+      <ConfirmationSyncer />
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div

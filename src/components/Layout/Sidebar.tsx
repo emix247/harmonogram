@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/appStore';
 import {
   LayoutDashboard, FolderOpen, GanttChartSquare, CheckSquare,
   Building2, Flag, FileStack, AlertTriangle, BarChart3,
-  Smartphone, DollarSign, History, Settings, ChevronDown, Layers, X, LogOut
+  Smartphone, DollarSign, History, Settings, ChevronDown, Layers, X, LogOut, Bell
 } from 'lucide-react';
 
 const menuItems = [
@@ -19,6 +19,7 @@ const menuItems = [
   { id: 'mobile', icon: Smartphone, label: 'Mobilní hlášení' },
   { id: 'cashflow', icon: DollarSign, label: 'Cash Flow' },
   { id: 'history', icon: History, label: 'Historie' },
+  { id: 'notifications', icon: Bell, label: 'Notifikace' },
 ];
 
 const STATUS_DOT: Record<string, string> = {
@@ -35,7 +36,7 @@ interface Props {
 }
 
 export default function Sidebar({ open, onClose, onLogout }: Props) {
-  const { currentPage, setCurrentPage, conflicts, tasks, risks, milestones, projects, currentProjectId, setCurrentProjectId, users } = useAppStore();
+  const { currentPage, setCurrentPage, conflicts, tasks, risks, milestones, projects, currentProjectId, setCurrentProjectId, users, notificationRecords } = useAppStore();
   const [projectOpen, setProjectOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -43,11 +44,13 @@ export default function Sidebar({ open, onClose, onLogout }: Props) {
   const overdueTasks = tasks.filter(t => t.status !== 'completed' && t.plannedEnd < today).length;
   const openRisks = risks.filter(r => r.status === 'open').length;
   const overdueMilestones = milestones.filter(m => m.status === 'pending' && m.plannedDate < today).length;
+  const pendingConfirmations = notificationRecords.filter(r => r.status === 'sent').length;
 
   const badges: Record<string, number> = {
     tasks: overdueTasks,
     risks: openRisks + conflicts.length,
     milestones: overdueMilestones,
+    notifications: pendingConfirmations,
   };
 
   const selectedProject = projects.find(p => p.id === currentProjectId) ?? null;
