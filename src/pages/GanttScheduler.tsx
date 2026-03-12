@@ -165,23 +165,8 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
     return ai - bi;
   };
 
-  const phaseGroups = phases
-    .filter(ph => filterProject ? ph.projectId === filterProject : true)
-    .sort((a, b) => a.order - b.order)
-    .map(phase => ({
-      phase,
-      tasks: filteredTasks.filter(t => t.phaseId === phase.id).sort(sortByTaskOrder),
-    }))
-    .filter(g => g.tasks.length > 0);
-
-  const unphased = filteredTasks
-    .filter(t => !t.phaseId || !phases.find(ph => ph.id === t.phaseId))
-    .sort(sortByTaskOrder);
-
-  const orderedTasks = [
-    ...phaseGroups.flatMap(g => g.tasks),
-    ...unphased,
-  ];
+  // Flat list sorted by taskOrder — identical ordering to the Tasks page
+  const orderedTasks = [...filteredTasks].sort(sortByTaskOrder);
 
   // ─── Panel helpers ───
   const openEdit = useCallback((task: Task) => {
@@ -354,65 +339,32 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
               >
                 <span className="text-xs font-medium text-gray-500">Název úkolu</span>
               </div>
-              {phaseGroups.map(({ phase, tasks: phaseTasks }) => (
-                <div key={phase.id}>
+              {orderedTasks.map(task => {
+                const taskPhase = task.phaseId ? phases.find(ph => ph.id === task.phaseId) : undefined;
+                return (
                   <div
+                    key={task.id}
                     style={{
                       height: ROW_HEIGHT,
-                      backgroundColor: phase.color + '20',
-                      borderBottom: '1px solid #e5e7eb',
-                      borderLeft: `4px solid ${phase.color}`,
+                      borderBottom: '1px solid #f1f5f9',
+                      borderLeft: taskPhase ? `4px solid ${taskPhase.color}` : '4px solid transparent',
+                      backgroundColor: hoveredTaskId === task.id ? '#eff6ff' : undefined,
+                      transition: 'background-color 0.1s',
+                      cursor: lockedProjectId ? 'default' : 'pointer',
                     }}
-                    className="flex items-center px-3"
+                    className="flex items-center px-3 gap-1.5 group"
+                    onMouseEnter={() => setHoveredTaskId(task.id)}
+                    onMouseLeave={() => setHoveredTaskId(null)}
+                    onClick={() => openEdit(task)}
                   >
-                    <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{phase.name}</span>
+                    {task.isCritical && <span className="text-red-500 text-xs">⚡</span>}
+                    <span className="text-xs text-gray-700 truncate flex-1" title={task.name}>{task.name}</span>
+                    {!lockedProjectId && (
+                      <span className="text-gray-300 group-hover:text-blue-400 text-xs shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">✎</span>
+                    )}
                   </div>
-                  {phaseTasks.map(task => (
-                    <div
-                      key={task.id}
-                      style={{
-                        height: ROW_HEIGHT,
-                        borderBottom: '1px solid #f1f5f9',
-                        backgroundColor: hoveredTaskId === task.id ? '#eff6ff' : undefined,
-                        transition: 'background-color 0.1s',
-                        cursor: lockedProjectId ? 'default' : 'pointer',
-                      }}
-                      className="flex items-center px-3 gap-1.5 group"
-                      onMouseEnter={() => setHoveredTaskId(task.id)}
-                      onMouseLeave={() => setHoveredTaskId(null)}
-                      onClick={() => openEdit(task)}
-                    >
-                      {task.isCritical && <span className="text-red-500 text-xs">⚡</span>}
-                      <span className="text-xs text-gray-700 truncate flex-1" title={task.name}>{task.name}</span>
-                      {!lockedProjectId && (
-                        <span className="text-gray-300 group-hover:text-blue-400 text-xs shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">✎</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {unphased.map(task => (
-                <div
-                  key={task.id}
-                  style={{
-                    height: ROW_HEIGHT,
-                    borderBottom: '1px solid #f1f5f9',
-                    backgroundColor: hoveredTaskId === task.id ? '#eff6ff' : undefined,
-                    transition: 'background-color 0.1s',
-                    cursor: lockedProjectId ? 'default' : 'pointer',
-                  }}
-                  className="flex items-center px-3 gap-1.5 group"
-                  onMouseEnter={() => setHoveredTaskId(task.id)}
-                  onMouseLeave={() => setHoveredTaskId(null)}
-                  onClick={() => openEdit(task)}
-                >
-                  {task.isCritical && <span className="text-red-500 text-xs">⚡</span>}
-                  <span className="text-xs text-gray-700 truncate flex-1" title={task.name}>{task.name}</span>
-                  {!lockedProjectId && (
-                    <span className="text-gray-300 group-hover:text-blue-400 text-xs shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">✎</span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Timeline */}
@@ -477,63 +429,11 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                   )
                 )}
 
-                {/* Task bars */}
+                {/* Task bars — flat list in taskOrder, matching Tasks page exactly */}
                 {(() => {
-                  let rowIndex = 0;
                   const bars: React.ReactNode[] = [];
 
-                  phaseGroups.forEach(({ phase, tasks: phaseTasks }) => {
-                    bars.push(
-                      <div key={`phase-${phase.id}`} style={{ position: 'absolute', top: HEADER_HEIGHT + rowIndex * ROW_HEIGHT, left: 0, right: 0, height: ROW_HEIGHT, backgroundColor: phase.color + '10', borderBottom: '1px solid #e5e7eb' }} />
-                    );
-                    rowIndex++;
-
-                    phaseTasks.forEach(task => {
-                      const x = dateToX(task.plannedStart);
-                      const w = taskWidth(task.plannedStart, task.plannedEnd);
-                      const color = getTaskColor(task);
-                      const y = HEADER_HEIGHT + rowIndex * ROW_HEIGHT;
-                      const isHovered = hoveredTaskId === task.id;
-
-                      bars.push(
-                        <div
-                          key={`row-${task.id}`}
-                          style={{ position: 'absolute', top: y, left: 0, right: 0, height: ROW_HEIGHT, borderBottom: '1px solid #f1f5f9', backgroundColor: isHovered ? '#eff6ff40' : undefined, transition: 'background-color 0.1s' }}
-                          onMouseEnter={() => setHoveredTaskId(task.id)}
-                          onMouseLeave={() => setHoveredTaskId(null)}
-                        />,
-                        <div
-                          key={`bar-${task.id}`}
-                          title={`${task.name}\n${formatDate(task.plannedStart)} – ${formatDate(task.plannedEnd)}\nPostup: ${task.progressPercent}%\nKliknutím editujte`}
-                          style={{
-                            position: 'absolute',
-                            top: y + 6, left: x, width: w, height: ROW_HEIGHT - 12,
-                            backgroundColor: color,
-                            borderRadius: 4,
-                            zIndex: 3,
-                            overflow: 'hidden',
-                            cursor: lockedProjectId ? 'default' : 'pointer',
-                            boxShadow: isHovered ? `0 0 0 2px white, 0 0 0 3px ${color}, 0 2px 8px rgba(0,0,0,0.3)` : '0 1px 3px rgba(0,0,0,0.2)',
-                            transform: isHovered ? 'scaleY(1.12)' : undefined,
-                            transition: 'box-shadow 0.1s, transform 0.1s',
-                          }}
-                          onMouseEnter={() => setHoveredTaskId(task.id)}
-                          onMouseLeave={() => setHoveredTaskId(null)}
-                          onClick={() => openEdit(task)}
-                        >
-                          <div style={{ position: 'absolute', top: 0, left: 0, width: `${task.progressPercent}%`, height: '100%', backgroundColor: 'rgba(255,255,255,0.25)' }} />
-                          {w > 60 && (
-                            <span className="absolute inset-0 flex items-center px-2 text-white text-xs font-medium truncate">
-                              {task.progressPercent}%
-                            </span>
-                          )}
-                        </div>
-                      );
-                      rowIndex++;
-                    });
-                  });
-
-                  unphased.forEach(task => {
+                  orderedTasks.forEach((task, rowIndex) => {
                     const x = dateToX(task.plannedStart);
                     const w = taskWidth(task.plannedStart, task.plannedEnd);
                     const color = getTaskColor(task);
@@ -549,12 +449,14 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                       />,
                       <div
                         key={`bar-${task.id}`}
-                        title={`${task.name}\n${formatDate(task.plannedStart)} – ${formatDate(task.plannedEnd)}\nKliknutím editujte`}
+                        title={`${task.name}\n${formatDate(task.plannedStart)} – ${formatDate(task.plannedEnd)}\nPostup: ${task.progressPercent}%\nKliknutím editujte`}
                         style={{
                           position: 'absolute',
                           top: y + 6, left: x, width: w, height: ROW_HEIGHT - 12,
                           backgroundColor: color,
-                          borderRadius: 4, zIndex: 3, overflow: 'hidden',
+                          borderRadius: 4,
+                          zIndex: 3,
+                          overflow: 'hidden',
                           cursor: lockedProjectId ? 'default' : 'pointer',
                           boxShadow: isHovered ? `0 0 0 2px white, 0 0 0 3px ${color}, 0 2px 8px rgba(0,0,0,0.3)` : '0 1px 3px rgba(0,0,0,0.2)',
                           transform: isHovered ? 'scaleY(1.12)' : undefined,
@@ -565,9 +467,13 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                         onClick={() => openEdit(task)}
                       >
                         <div style={{ position: 'absolute', top: 0, left: 0, width: `${task.progressPercent}%`, height: '100%', backgroundColor: 'rgba(255,255,255,0.25)' }} />
+                        {w > 60 && (
+                          <span className="absolute inset-0 flex items-center px-2 text-white text-xs font-medium truncate">
+                            {task.progressPercent}%
+                          </span>
+                        )}
                       </div>
                     );
-                    rowIndex++;
                   });
 
                   // Milestones
