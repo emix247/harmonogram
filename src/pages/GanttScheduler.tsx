@@ -78,7 +78,7 @@ interface GanttSchedulerProps {
 export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSchedulerProps = {}) {
   const {
     tasks, projects, phases, currentProjectId, milestones, crafts, objects, users,
-    addTask, updateTask, deleteTask,
+    addTask, updateTask, deleteTask, taskOrder,
   } = useAppStore();
 
   const [zoom, setZoom] = useState<ZoomLevel>('month');
@@ -155,13 +155,28 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
     return '#94a3b8';
   };
 
+  // Sort helper: respects persisted taskOrder from Tasks page
+  const sortByTaskOrder = (a: (typeof tasks)[0], b: (typeof tasks)[0]) => {
+    const ai = taskOrder.indexOf(a.id);
+    const bi = taskOrder.indexOf(b.id);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  };
+
   const phaseGroups = phases
     .filter(ph => filterProject ? ph.projectId === filterProject : true)
     .sort((a, b) => a.order - b.order)
-    .map(phase => ({ phase, tasks: filteredTasks.filter(t => t.phaseId === phase.id) }))
+    .map(phase => ({
+      phase,
+      tasks: filteredTasks.filter(t => t.phaseId === phase.id).sort(sortByTaskOrder),
+    }))
     .filter(g => g.tasks.length > 0);
 
-  const unphased = filteredTasks.filter(t => !t.phaseId || !phases.find(ph => ph.id === t.phaseId));
+  const unphased = filteredTasks
+    .filter(t => !t.phaseId || !phases.find(ph => ph.id === t.phaseId))
+    .sort(sortByTaskOrder);
 
   const orderedTasks = [
     ...phaseGroups.flatMap(g => g.tasks),
@@ -192,7 +207,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
       craftId: '',
       contractorId: '',
       responsiblePersonId: users[0]?.id || '',
-      priority: 'medium',
+      priority: 'high',
       progressPercent: 0,
       status: 'not_started',
       notes: '',

@@ -67,7 +67,7 @@ export default function Tasks() {
     craftId: '',
     contractorId: '',
     responsiblePersonId: users[0]?.id || '',
-    priority: 'medium',
+    priority: 'high',
     progressPercent: 0,
     autoProgress: true,
     status: 'not_started',
@@ -662,21 +662,23 @@ export default function Tasks() {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Postup</label>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Auto</span>
-                      <button
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, autoProgress: !(f.autoProgress ?? true) }))}
-                        className={`relative w-9 h-5 rounded-full transition-colors ${(form.autoProgress ?? true) ? 'bg-blue-500' : 'bg-gray-300'}`}
-                      >
-                        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(form.autoProgress ?? true) ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                      </button>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Postup</label>
                       <span className="text-sm font-bold text-blue-600">
                         {(form.autoProgress ?? true)
                           ? `${getEffectiveProgress({ ...form as Parameters<typeof getEffectiveProgress>[0] }, today)}%`
                           : `${form.progressPercent ?? 0}%`}
                       </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-400">Auto</span>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, autoProgress: !(f.autoProgress ?? true) }))}
+                        className={`relative w-10 h-5 rounded-full transition-colors ${(form.autoProgress ?? true) ? 'bg-blue-500' : 'bg-gray-300'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(form.autoProgress ?? true) ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
                     </div>
                   </div>
                   {(form.autoProgress ?? true) ? (
