@@ -35,7 +35,7 @@ interface Props {
 }
 
 export default function Sidebar({ open, onClose, onLogout }: Props) {
-  const { currentPage, setCurrentPage, conflicts, tasks, risks, milestones, projects, currentProjectId, setCurrentProjectId } = useAppStore();
+  const { currentPage, setCurrentPage, conflicts, tasks, risks, milestones, projects, currentProjectId, setCurrentProjectId, users } = useAppStore();
   const [projectOpen, setProjectOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -212,20 +212,40 @@ export default function Sidebar({ open, onClose, onLogout }: Props) {
           <Settings size={17} />
           <span>Nastavení</span>
         </button>
-        <div className="px-4 py-2 flex items-center justify-between">
-          <div className="text-xs text-gray-500">
-            <p className="font-medium text-gray-400">TESGRUP s.r.o.</p>
-            <p>Ing. Jan Novák</p>
-            <p className="text-blue-400">Administrátor</p>
-          </div>
-          <button
-            onClick={onLogout}
-            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors"
-            title="Odhlásit se"
-          >
-            <LogOut size={15} />
-          </button>
-        </div>
+        {(() => {
+          const userId = sessionStorage.getItem('harmonogram-auth');
+          const loggedUser = users.find(u => u.id === userId);
+          const roleLabel: Record<string, string> = {
+            admin: 'Administrátor', project_manager: 'Projektový manažer',
+            site_manager: 'Stavbyvedoucí', viewer: 'Pouze čtení',
+          };
+          return (
+            <div className="px-3 py-2 border-t border-gray-700/50">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                  <span className="text-white text-xs font-bold">
+                    {loggedUser ? loggedUser.name.charAt(0).toUpperCase() : 'A'}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-gray-300 truncate">
+                    {loggedUser?.name ?? 'Admin'}
+                  </p>
+                  <p className="text-xs text-blue-400 truncate">
+                    {loggedUser ? (roleLabel[loggedUser.role] ?? loggedUser.role) : 'Administrátor'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={onLogout}
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <LogOut size={13} />
+                <span>Odhlásit se</span>
+              </button>
+            </div>
+          );
+        })()}
       </div>
     </aside>
   );
