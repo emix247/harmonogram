@@ -3,8 +3,46 @@ import { persist } from 'zustand/middleware';
 import type {
   Project, Task, Craft, Contractor, Milestone, Risk, Template,
   TaskLog, MobileReport, ConflictAlert, Company, User, Phase, ProjectObject, ProjectShare, Role, ProjectCraftAssignment,
-  NotificationSettings, NotificationRecord, PendingNotification
+  NotificationSettings, NotificationRecord, PendingNotification, NotificationRule,
 } from '../types';
+
+// =================== DEFAULT NOTIFICATION RULES ===================
+
+const DEFAULT_CASCADE_INTRO = 'z důvodu posunu předcházejících prací došlo ke změně termínu zahájení Vašeho úkolu. Prosíme o potvrzení, že nový termín berete na vědomí a je pro Vás akceptovatelný.';
+const DEFAULT_CASCADE_FOOTER = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb. Tlačítko slouží k potvrzení přijetí informace, nevyžaduje přihlášení.';
+const DEFAULT_REMINDER_INTRO = 'dovolujeme si Vám připomenout blížící se termín Vašeho úkolu. Ujistěte se prosím, že práce probíhají dle plánu a termín bude dodržen.';
+const DEFAULT_REMINDER_FOOTER = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb.';
+
+export const defaultNotificationRules: NotificationRule[] = [
+  {
+    id: 'default-cascade',
+    name: 'Posun termínu (kaskáda)',
+    enabled: true,
+    trigger: 'cascade',
+    minShiftDays: 1,
+    daysBeforeDeadline: 0,
+    projectIds: [],
+    emailSubject: 'Změna termínu: {{ukolNazev}} (nástup {{novyNastup}})',
+    emailIntro: DEFAULT_CASCADE_INTRO,
+    emailFooter: DEFAULT_CASCADE_FOOTER,
+    showConfirmButton: true,
+    ccEmails: [],
+  },
+  {
+    id: 'default-reminder',
+    name: 'Připomínka 3 dny před termínem',
+    enabled: false,
+    trigger: 'deadline_reminder',
+    minShiftDays: 0,
+    daysBeforeDeadline: 3,
+    projectIds: [],
+    emailSubject: 'Připomínka: {{ukolNazev}} za {{dniDoKonce}} dní',
+    emailIntro: DEFAULT_REMINDER_INTRO,
+    emailFooter: DEFAULT_REMINDER_FOOTER,
+    showConfirmButton: false,
+    ccEmails: [],
+  },
+];
 
 // =================== DEPENDENCY CASCADE HELPERS ===================
 
@@ -852,13 +890,18 @@ interface AppState {
   addLog: (log: TaskLog) => void;
 
   // Notification Actions
-  notificationSettings: NotificationSettings[];
+  notificationSettings: NotificationSettings[];   // kept for backward compat
+  notificationRules: NotificationRule[];
   notificationRecords: NotificationRecord[];
   pendingNotifications: PendingNotification[];
   updateNotificationSettings: (projectId: string, enabled: boolean) => void;
+  addNotificationRule: (rule: NotificationRule) => void;
+  updateNotificationRule: (id: string, updates: Partial<NotificationRule>) => void;
+  deleteNotificationRule: (id: string) => void;
   addNotificationRecord: (record: NotificationRecord) => void;
   updateNotificationRecord: (id: string, updates: Partial<NotificationRecord>) => void;
   clearPendingNotifications: () => void;
+  appendPendingNotifications: (items: PendingNotification[]) => void;
   syncConfirmations: (confirmed: Record<string, string>) => void;
 }
 
@@ -884,6 +927,7 @@ export const useAppStore = create<AppState>()(
       taskOrder: [...sampleTasks].sort((a, b) => a.plannedStart.localeCompare(b.plannedStart)).map(t => t.id),
       roles: defaultRoles,
       notificationSettings: [{ projectId: '*', enabled: true }],
+      notificationRules: defaultNotificationRules,
       notificationRecords: [],
       pendingNotifications: [],
 
@@ -916,16 +960,28 @@ export const useAppStore = create<AppState>()(
           if (datesChanged) {
             const cascaded = cascadeTaskDates(id, updatedList);
 
-            // Detect which tasks (other than the directly edited one) had their start shifted
+            // Active cascade rules (with project + minShift filtering)
+            const cascadeRules = (state.notificationRules ?? defaultNotificationRules).filter(
+              r => r.enabled && r.trigger === 'cascade'
+            );
+
             const pending: PendingNotification[] = [];
             for (const newTask of cascaded) {
-              if (newTask.id === id) continue; // skip the directly edited task
+              if (newTask.id === id) continue;
               const oldTask = state.tasks.find(t => t.id === newTask.id);
               if (!oldTask) continue;
               if (newTask.plannedStart !== oldTask.plannedStart) {
                 const oldD = new Date(oldTask.plannedStart).getTime();
                 const newD = new Date(newTask.plannedStart).getTime();
                 const shiftDays = Math.round((newD - oldD) / 86400000);
+
+                // Find the first matching rule
+                const matchingRule = cascadeRules.find(r => {
+                  const projectOk = r.projectIds.length === 0 || r.projectIds.includes(newTask.projectId);
+                  return projectOk && Math.abs(shiftDays) >= r.minShiftDays;
+                });
+                if (!matchingRule) continue;
+
                 pending.push({
                   taskId: newTask.id,
                   oldStart: oldTask.plannedStart,
@@ -933,6 +989,8 @@ export const useAppStore = create<AppState>()(
                   oldEnd: oldTask.plannedEnd,
                   newEnd: newTask.plannedEnd,
                   shiftDays,
+                  ruleId: matchingRule.id,
+                  notificationType: 'cascade',
                 });
               }
             }
@@ -1035,6 +1093,16 @@ export const useAppStore = create<AppState>()(
           }
           return { notificationSettings: [...state.notificationSettings, { projectId, enabled }] };
         }),
+
+      addNotificationRule: (rule) =>
+        set((state) => ({ notificationRules: [...(state.notificationRules ?? []), rule] })),
+      updateNotificationRule: (id, updates) =>
+        set((state) => ({
+          notificationRules: (state.notificationRules ?? []).map(r => r.id === id ? { ...r, ...updates } : r),
+        })),
+      deleteNotificationRule: (id) =>
+        set((state) => ({ notificationRules: (state.notificationRules ?? []).filter(r => r.id !== id) })),
+
       addNotificationRecord: (record) =>
         set((state) => ({ notificationRecords: [record, ...state.notificationRecords] })),
       updateNotificationRecord: (id, updates) =>
@@ -1042,6 +1110,8 @@ export const useAppStore = create<AppState>()(
           notificationRecords: state.notificationRecords.map(r => r.id === id ? { ...r, ...updates } : r),
         })),
       clearPendingNotifications: () => set({ pendingNotifications: [] }),
+      appendPendingNotifications: (items) =>
+        set((state) => ({ pendingNotifications: [...state.pendingNotifications, ...items] })),
       syncConfirmations: (confirmed) =>
         set((state) => ({
           notificationRecords: state.notificationRecords.map(r => {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Component, type ErrorInfo, type ReactNode 
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import Login from './pages/Login';
-import { useAppStore } from './store/appStore';
+import { useAppStore, defaultNotificationRules } from './store/appStore';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import GanttScheduler from './pages/GanttScheduler';
@@ -18,7 +18,7 @@ import HistoryLog from './pages/HistoryLog';
 import Settings from './pages/Settings';
 import PublicView from './pages/PublicView';
 import Notifikace from './pages/Notifikace';
-import type { NotificationRecord } from './types';
+import type { NotificationRecord, PendingNotification } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
@@ -39,42 +39,51 @@ const pages: Record<string, React.ComponentType> = {
   notifications: Notifikace,
 };
 
+// ── Helper ────────────────────────────────────────────────────────────────────
+function addDaysStr(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
 /**
- * Watches `pendingNotifications` in the store, calls /api/notify for each,
+ * Watches `pendingNotifications`, calls /api/notify for each,
  * stores results as NotificationRecord entries, then clears the queue.
  */
 function NotificationProcessor() {
   const {
     pendingNotifications, clearPendingNotifications,
     tasks, crafts, contractors, projects,
-    notificationSettings, addNotificationRecord,
+    notificationRules,
+    addNotificationRecord,
   } = useAppStore();
 
   useEffect(() => {
     if (pendingNotifications.length === 0) return;
 
-    const globalEnabled = notificationSettings.find(s => s.projectId === '*')?.enabled ?? true;
+    const rules = notificationRules ?? defaultNotificationRules;
 
-    // Build notification payloads
     const notifications: Array<{
       taskId: string; taskName: string; projectId: string; projectName: string;
       contractorId: string; contractorName: string; contractorEmail: string;
       oldStart: string; newStart: string; oldEnd: string; newEnd: string; shiftDays: number;
+      notificationType: 'cascade' | 'deadline_reminder';
+      ruleId?: string;
+      emailSubject?: string; emailIntro?: string; emailFooter?: string;
+      showConfirmButton?: boolean; ccEmails?: string[];
+      daysBeforeDeadline?: number;
     }> = [];
 
     for (const pending of pendingNotifications) {
       const task = tasks.find(t => t.id === pending.taskId);
       if (!task) continue;
 
-      // Check if notifications are enabled for this project
-      const perProject = notificationSettings.find(s => s.projectId === task.projectId);
-      const enabled = perProject !== undefined ? perProject.enabled : globalEnabled;
-      if (!enabled) continue;
+      const rule = pending.ruleId ? rules.find(r => r.id === pending.ruleId) : undefined;
 
       const craft = crafts.find(c => c.id === task.craftId);
       const contractorId = task.contractorId || craft?.contractorId || '';
       const contractor = contractors.find(c => c.id === contractorId);
-      if (!contractor?.email) continue; // skip if no email
+      if (!contractor?.email) continue;
 
       const project = projects.find(p => p.id === task.projectId);
 
@@ -91,6 +100,16 @@ function NotificationProcessor() {
         oldEnd: pending.oldEnd,
         newEnd: pending.newEnd,
         shiftDays: pending.shiftDays,
+        notificationType: pending.notificationType ?? 'cascade',
+        ruleId: pending.ruleId,
+        emailSubject: rule?.emailSubject,
+        emailIntro: rule?.emailIntro,
+        emailFooter: rule?.emailFooter,
+        showConfirmButton: rule?.showConfirmButton,
+        ccEmails: rule?.ccEmails,
+        daysBeforeDeadline: pending.notificationType === 'deadline_reminder'
+          ? rule?.daysBeforeDeadline
+          : undefined,
       });
     }
 
@@ -99,7 +118,6 @@ function NotificationProcessor() {
 
     if (notifications.length === 0) return;
 
-    // Call API
     fetch(`${API_BASE}/api/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -127,6 +145,9 @@ function NotificationProcessor() {
             token: result.token,
             sentAt: now,
             status: result.success ? 'sent' : 'error',
+            ruleId: n.ruleId,
+            notificationType: n.notificationType,
+            errorMessage: result.success ? undefined : result.error,
           };
           addNotificationRecord(record);
         }
@@ -136,6 +157,66 @@ function NotificationProcessor() {
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingNotifications]);
+
+  return null;
+}
+
+/**
+ * On app load, checks deadline reminder rules and queues notifications
+ * for tasks whose plannedEnd is rule.daysBeforeDeadline days from today.
+ */
+function DeadlineReminderProcessor() {
+  const {
+    tasks, crafts, contractors, notificationRules, notificationRecords,
+    appendPendingNotifications,
+  } = useAppStore();
+
+  useEffect(() => {
+    const rules = notificationRules ?? defaultNotificationRules;
+    const reminderRules = rules.filter(r => r.enabled && r.trigger === 'deadline_reminder');
+    if (reminderRules.length === 0) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const newPending: PendingNotification[] = [];
+
+    for (const rule of reminderRules) {
+      const targetDate = addDaysStr(today, rule.daysBeforeDeadline);
+
+      const matchingTasks = tasks.filter(t => {
+        const projectOk = rule.projectIds.length === 0 || rule.projectIds.includes(t.projectId);
+        return t.plannedEnd === targetDate && t.status !== 'completed' && projectOk;
+      });
+
+      for (const task of matchingTasks) {
+        const alreadySent = notificationRecords.some(r =>
+          r.taskId === task.id &&
+          r.ruleId === rule.id &&
+          r.notificationType === 'deadline_reminder' &&
+          r.sentAt?.startsWith(today)
+        );
+        if (alreadySent) continue;
+
+        const craft = crafts.find(c => c.id === task.craftId);
+        const contractorId = task.contractorId || craft?.contractorId || '';
+        const contractor = contractors.find(c => c.id === contractorId);
+        if (!contractor?.email) continue;
+
+        newPending.push({
+          taskId: task.id,
+          oldStart: task.plannedStart,
+          newStart: task.plannedStart,
+          oldEnd: task.plannedEnd,
+          newEnd: task.plannedEnd,
+          shiftDays: 0,
+          ruleId: rule.id,
+          notificationType: 'deadline_reminder',
+        });
+      }
+    }
+
+    if (newPending.length > 0) appendPendingNotifications(newPending);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
 
   return null;
 }
@@ -187,6 +268,7 @@ function extractSyncState(s: ReturnType<typeof useAppStore.getState>) {
     roles: s.roles,
     currentProjectId: s.currentProjectId,
     notificationSettings: s.notificationSettings,
+    notificationRules: s.notificationRules,
     notificationRecords: s.notificationRecords,
   };
 }
@@ -206,7 +288,7 @@ function setSyncStatus(s: SyncStatus) {
   _syncListeners.forEach(l => l(s));
 }
 
-const POLL_INTERVAL_MS = 5000; // 5 seconds
+const POLL_INTERVAL_MS = 5000;
 
 /**
  * Loads app state from Neon on mount (cloud state wins over localStorage).
@@ -216,9 +298,7 @@ const POLL_INTERVAL_MS = 5000; // 5 seconds
 function CloudSync() {
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Track the updated_at we last saw from the server (detects external changes)
   const serverTimestampRef = useRef<string | null>(null);
-  // While a save is in flight / pending, skip the poll reload to avoid clobbering local edits
   const savingRef = useRef(false);
 
   useEffect(() => {
@@ -229,9 +309,13 @@ function CloudSync() {
       .then(r => r.json())
       .then((data: { state: unknown | null; updatedAt: string | null }) => {
         if (data.state && typeof data.state === 'object') {
-          // Neon has data → it is the source of truth, overwrite localStorage
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          useAppStore.setState(data.state as any);
+          const stateObj = data.state as any;
+          // Migrate: add notificationRules if Neon state predates this feature
+          if (!stateObj.notificationRules) {
+            stateObj.notificationRules = defaultNotificationRules;
+          }
+          useAppStore.setState(stateObj);
           serverTimestampRef.current = data.updatedAt ?? null;
           loadedRef.current = true;
           setSyncStatus('idle');
@@ -281,7 +365,6 @@ function CloudSync() {
         })
           .then(r => r.json())
           .then((res: { ok?: boolean; updatedAt?: string }) => {
-            // Store the timestamp we just saved — poll won't reload our own save
             if (res.updatedAt) serverTimestampRef.current = res.updatedAt;
             savingRef.current = false;
             setSyncStatus('saved');
@@ -303,12 +386,13 @@ function CloudSync() {
         .then(r => r.json())
         .then((data: { state: unknown | null; updatedAt: string | null }) => {
           if (!data.updatedAt) return;
-          // If the server timestamp is newer than what we last loaded/saved, reload
           if (data.updatedAt && data.updatedAt !== serverTimestampRef.current) {
             serverTimestampRef.current = data.updatedAt;
             if (data.state && typeof data.state === 'object') {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              useAppStore.setState(data.state as any);
+              const stateObj = data.state as any;
+              if (!stateObj.notificationRules) stateObj.notificationRules = defaultNotificationRules;
+              useAppStore.setState(stateObj);
               setSyncStatus('refreshed');
               setTimeout(() => setSyncStatus('idle'), 3000);
             }
@@ -371,6 +455,7 @@ export default function App() {
       <CloudSync />
       <NotificationProcessor />
       <ConfirmationSyncer />
+      <DeadlineReminderProcessor />
 
       {/* Mobile overlay */}
       {sidebarOpen && (

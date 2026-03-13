@@ -233,12 +233,37 @@ export interface ConflictAlert {
 
 // =================== NOTIFICATION TYPES ===================
 
+/** @deprecated use NotificationRule instead */
 export interface NotificationSettings {
-  projectId: string;   // '*' means all projects
+  projectId: string;
   enabled: boolean;
 }
 
 export type NotificationStatus = 'sent' | 'confirmed' | 'error';
+export type NotificationTrigger = 'cascade' | 'deadline_reminder';
+
+/** A configurable notification rule — one rule = one email template + trigger config */
+export interface NotificationRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  trigger: NotificationTrigger;
+
+  // cascade: only fire when |shiftDays| >= minShiftDays (default 1)
+  minShiftDays: number;
+  // deadline_reminder: fire N days before task.plannedEnd
+  daysBeforeDeadline: number;
+
+  // project filter — empty array = all projects
+  projectIds: string[];
+
+  // email template — all fields support {{variables}}
+  emailSubject: string;
+  emailIntro: string;      // paragraph shown before the date table
+  emailFooter: string;
+  showConfirmButton: boolean;
+  ccEmails: string[];
+}
 
 export interface NotificationRecord {
   id: string;
@@ -257,9 +282,12 @@ export interface NotificationRecord {
   sentAt: string;
   status: NotificationStatus;
   confirmedAt?: string;
+  ruleId?: string;
+  notificationType?: NotificationTrigger;
+  errorMessage?: string;
 }
 
-/** Cascade-shifted tasks waiting to be notified — produced by updateTask, consumed by NotificationProcessor */
+/** Tasks waiting to be notified — produced by updateTask / DeadlineReminderProcessor, consumed by NotificationProcessor */
 export interface PendingNotification {
   taskId: string;
   oldStart: string;
@@ -267,4 +295,6 @@ export interface PendingNotification {
   oldEnd: string;
   newEnd: string;
   shiftDays: number;
+  ruleId?: string;
+  notificationType?: NotificationTrigger;
 }
