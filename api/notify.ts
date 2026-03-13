@@ -55,6 +55,7 @@ export interface NotifyItem {
   emailSubject?: string;
   emailIntro?: string;
   emailFooter?: string;
+  emailNote?: string;
   showConfirmButton?: boolean;
   ccEmails?: string[];
   // deadline_reminder extra
@@ -184,9 +185,7 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
       <p>${intro}</p>
       ${dateTableHtml}
       ${confirmBtnHtml}
-      <p style="color:#9ca3af; font-size:12px; text-align:center;">
-        Pokud máte dotazy, odpovězte prosím na tento email nebo kontaktujte projektového manažera.
-      </p>
+      ${n.emailNote ? `<p style="color:#9ca3af; font-size:12px; text-align:center;">${n.emailNote}</p>` : ''}
     </div>
     <div class="footer">${footer}</div>
   </div>

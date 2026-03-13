@@ -388,6 +388,19 @@ function RuleEditor({ rule, projectOptions, onChange, onDelete }: RuleEditorProp
             />
           </div>
 
+          {/* Email note */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Poznámka pod tlačítkem</label>
+            <input
+              type="text"
+              value={rule.emailNote ?? ''}
+              onChange={e => onChange({ emailNote: e.target.value })}
+              placeholder="Pokud máte dotazy, odpovězte prosím na tento email nebo kontaktujte projektového manažera."
+              className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">Malý šedý text zobrazený pod tlačítkem Potvrzuji termín. Nechte prázdné pro skrytí.</p>
+          </div>
+
           {/* Show confirm button */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -584,6 +597,7 @@ export default function Notifikace() {
       emailSubject: 'Změna termínu: {{ukolNazev}} (nástup {{novyNastup}})',
       emailIntro: 'z důvodu posunu předcházejících prací došlo ke změně termínu zahájení Vašeho úkolu. Prosíme o potvrzení, že nový termín berete na vědomí.',
       emailFooter: 'Tato zpráva byla automaticky odeslána systémem Plánování staveb.',
+      emailNote: 'Pokud máte dotazy, odpovězte prosím na tento email nebo kontaktujte projektového manažera.',
       showConfirmButton: true,
       ccEmails: [],
     };

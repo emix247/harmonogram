@@ -105,6 +105,7 @@ function NotificationProcessor() {
         emailSubject: rule?.emailSubject,
         emailIntro: rule?.emailIntro,
         emailFooter: rule?.emailFooter,
+        emailNote: rule?.emailNote,
         showConfirmButton: rule?.showConfirmButton,
         ccEmails: rule?.ccEmails,
         daysBeforeDeadline: pending.notificationType === 'deadline_reminder'

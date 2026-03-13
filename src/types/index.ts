@@ -261,6 +261,7 @@ export interface NotificationRule {
   emailSubject: string;
   emailIntro: string;      // paragraph shown before the date table
   emailFooter: string;
+  emailNote: string;       // small note below confirm button (e.g. contact info)
   showConfirmButton: boolean;
   ccEmails: string[];
 }

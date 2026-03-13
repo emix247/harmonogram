@@ -12,6 +12,7 @@ const DEFAULT_CASCADE_INTRO = 'z důvodu posunu předcházejících prací došl
 const DEFAULT_CASCADE_FOOTER = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb. Tlačítko slouží k potvrzení přijetí informace, nevyžaduje přihlášení.';
 const DEFAULT_REMINDER_INTRO = 'dovolujeme si Vám připomenout blížící se termín Vašeho úkolu. Ujistěte se prosím, že práce probíhají dle plánu a termín bude dodržen.';
 const DEFAULT_REMINDER_FOOTER = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb.';
+const DEFAULT_EMAIL_NOTE = 'Pokud máte dotazy, odpovězte prosím na tento email nebo kontaktujte projektového manažera.';
 
 export const defaultNotificationRules: NotificationRule[] = [
   {
@@ -25,6 +26,7 @@ export const defaultNotificationRules: NotificationRule[] = [
     emailSubject: 'Změna termínu: {{ukolNazev}} (nástup {{novyNastup}})',
     emailIntro: DEFAULT_CASCADE_INTRO,
     emailFooter: DEFAULT_CASCADE_FOOTER,
+    emailNote: DEFAULT_EMAIL_NOTE,
     showConfirmButton: true,
     ccEmails: [],
   },
@@ -39,6 +41,7 @@ export const defaultNotificationRules: NotificationRule[] = [
     emailSubject: 'Připomínka: {{ukolNazev}} za {{dniDoKonce}} dní',
     emailIntro: DEFAULT_REMINDER_INTRO,
     emailFooter: DEFAULT_REMINDER_FOOTER,
+    emailNote: DEFAULT_EMAIL_NOTE,
     showConfirmButton: false,
     ccEmails: [],
   },
