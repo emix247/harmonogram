@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useAppStore, defaultNotificationRules } from '../store/appStore';
-import type { NotificationRule } from '../types';
+import type { NotificationRule, ProjectNotificationConfig } from '../types';
 import {
   Bell, CheckCircle, Clock, XCircle, Mail, RefreshCw,
   ChevronDown, ChevronUp, Plus, Trash2, Settings2,
-  Zap, CalendarClock, Copy,
+  Zap, CalendarClock, Copy, Building2, HelpCircle,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -67,6 +67,96 @@ function VarsChips({ trigger }: { trigger: 'cascade' | 'deadline_reminder' }) {
         ))}
       </div>
       <p className="text-[10px] text-gray-400 mt-2">Klikněte na proměnnou pro zkopírování do schránky</p>
+    </div>
+  );
+}
+
+// ── Help panel ────────────────────────────────────────────────────────────────
+
+function HelpSection({ title, children, defaultOpen = false }: {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-gray-100 last:border-0">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 transition-colors"
+      >
+        <span className="flex-1 text-sm font-medium text-gray-700">{title}</span>
+        {open
+          ? <ChevronUp size={13} className="text-gray-400 shrink-0" />
+          : <ChevronDown size={13} className="text-gray-400 shrink-0" />}
+      </button>
+      {open && (
+        <div className="px-5 pb-4 text-sm text-gray-600 leading-relaxed space-y-2">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HelpPanel() {
+  return (
+    <div className="bg-white border border-indigo-200 rounded-xl overflow-hidden shadow-sm">
+      <div className="px-5 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2">
+        <HelpCircle size={15} className="text-indigo-500" />
+        <h2 className="text-sm font-semibold text-indigo-800">Nápověda — Jak fungují notifikace</h2>
+      </div>
+
+      <HelpSection title="⚡ Co je kaskádový posun termínu?">
+        <p>Úkoly jsou propojeny vazbami (FS = Finish-Start, SS = Start-Start, FF = Finish-Finish). Když změníte termín jednoho úkolu, systém <strong>automaticky přepočítá termíny všech navazujících</strong> úkolů — to je kaskáda.</p>
+        <p>Pravidlo <em>Posun kaskádou</em> pak odešle email zhotoviteli každého úkolu, jehož termín se kaskádou posunul.</p>
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2.5">
+          <strong>Min. posun (dní):</strong> Email se odešle pouze pokud je posun alespoň N dní. Hodnota „1" = odeslat vždy. Hodnota „3" = odeslat jen při posunu o 3 a více dní — ignoruje drobné korekce.
+        </div>
+      </HelpSection>
+
+      <HelpSection title="📅 Co je připomínka termínu?">
+        <p>Při každém spuštění aplikace systém zkontroluje, zda <strong>termín dokončení</strong> některého úkolu nastane za přesně N dní. Pokud ano, odešle zhotoviteli připomínku.</p>
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2.5">
+          <strong>Dní před termínem:</strong> Připomínka se odešle přesně N dní před plánovaným koncem úkolu. Pro každý úkol se odešle max. jednou za den — při opakovaném otevření aplikace se nezdvojuje.
+        </div>
+      </HelpSection>
+
+      <HelpSection title="🏢 Platnost pravidla: Všechny vs. Vybrané projekty">
+        <p><strong>Všechny projekty</strong> — pravidlo platí pro každý projekt. Notifikace se odešle při splnění podmínky u libovolného úkolu.</p>
+        <p><strong>Pouze vybrané projekty</strong> — pravidlo platí jen pro zaškrtnuté projekty. Úkoly v ostatních projektech toto pravidlo ignoruje. Zaškrtnutý projekt = pravidlo na něj platí.</p>
+        <div className="text-xs text-indigo-700 bg-indigo-50 rounded-lg p-2.5">
+          💡 <strong>Záložka Projekty</strong> nabídne ještě jemnější řízení: u každého projektu lze individuálně zapnout/vypnout všechny notifikace nebo vybrat pouze konkrétní pravidla.
+        </div>
+      </HelpSection>
+
+      <HelpSection title="✉ Šablona emailu a proměnné">
+        <p>Předmět, úvodní odstavec i patičku lze libovolně editovat. Podporují <strong>proměnné</strong> — kódy v dvojitých závorkách, které se při odeslání nahradí skutečnými hodnotami.</p>
+        <p>Příklad: <code className="bg-gray-100 px-1 rounded font-mono">{'{{ukolNazev}}'}</code> → „Zdivo přízemí – Dům č. 1"</p>
+        <p>Klikněte na proměnnou ve spodním panelu pravidla pro <strong>zkopírování do schránky</strong>.</p>
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2.5">
+          <strong>CC emaily:</strong> Adresy oddělené čárkou, které obdrží kopii každého emailu z tohoto pravidla (nezávisle na hlavním příjemci — zhotoviteli).
+        </div>
+      </HelpSection>
+
+      <HelpSection title={'✅ Tlačítko \u201ePotvrzuji termín\u201c v emailu'}>
+        <p>Pokud je zapnuto, email bude obsahovat tlačítko, na které zhotovitel klikne pro <strong>potvrzení přijetí termínu</strong>. Nevyžaduje přihlášení.</p>
+        <p>Stav potvrzení se zobrazí v záložce <strong>Historie</strong> — ikonka ✓ (potvrzeno) nebo ⏱ (čeká).</p>
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2.5">
+          Tlačítko <strong>Synchronizovat</strong> v záložce Historie načte aktuální stav potvrzení ze serveru. Automatická synchronizace proběhne také při každém spuštění aplikace.
+        </div>
+      </HelpSection>
+
+      <HelpSection title="📊 Záložka Projekty — individuální nastavení">
+        <p>Každý projekt má vlastní přepínač a výběr pravidel:</p>
+        <ul className="list-disc list-inside space-y-1 mt-1">
+          <li><strong>Přepínač vpravo</strong> — master vypínač; vypnutý projekt neobdrží žádné notifikace bez ohledu na nastavení pravidel</li>
+          <li><strong>Ozubené kolečko (⚙)</strong> — otevře výběr konkrétních pravidel pro daný projekt; výchozí stav = všechna aktivní pravidla</li>
+        </ul>
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2.5">
+          <strong>Kombinace filtrů:</strong> Pravidlo může mít vlastní filtr projektů A projekt může mít vlastní filtr pravidel — obě podmínky musí být splněny, aby se email odeslal.
+        </div>
+      </HelpSection>
     </div>
   );
 }
@@ -197,31 +287,71 @@ function RuleEditor({ rule, projectOptions, onChange, onDelete }: RuleEditorProp
           {/* Project filter */}
           {projectOptions.length > 0 && (
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Projekty (prázdné = všechny)</label>
-              <div className="flex flex-wrap gap-1.5">
-                {projectOptions.map(p => {
-                  const selected = rule.projectIds.includes(p.id);
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => onChange({
-                        projectIds: selected
-                          ? rule.projectIds.filter(id => id !== p.id)
-                          : [...rule.projectIds, p.id],
-                      })}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                        selected
-                          ? 'text-white border-transparent'
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                      }`}
-                      style={selected ? { backgroundColor: p.color, borderColor: p.color } : {}}
-                    >
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                      {p.name}
-                    </button>
-                  );
-                })}
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Pravidlo platí pro projekty</label>
+              {/* Mode selector */}
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => onChange({ projectIds: [] })}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    rule.projectIds.length === 0
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-300'
+                  }`}
+                >
+                  Všechny projekty
+                </button>
+                <button
+                  onClick={() => {
+                    if (rule.projectIds.length === 0) {
+                      onChange({ projectIds: projectOptions.map(p => p.id) });
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    rule.projectIds.length > 0
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-300'
+                  }`}
+                >
+                  Pouze vybrané{rule.projectIds.length > 0 && ` (${rule.projectIds.length})`}
+                </button>
               </div>
+
+              {/* Description */}
+              {rule.projectIds.length === 0 ? (
+                <p className="text-xs text-gray-400 mb-1">Notifikace se odešle pro úkoly ze všech projektů.</p>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Zaškrtněte projekty, pro které chcete odeslat notifikace:
+                  </p>
+                  <div className="space-y-1.5 pl-1">
+                    {projectOptions.map(p => {
+                      const selected = rule.projectIds.includes(p.id);
+                      return (
+                        <label key={p.id} className="flex items-center gap-2.5 cursor-pointer py-0.5 group">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => onChange({
+                              projectIds: selected
+                                ? rule.projectIds.filter(id => id !== p.id)
+                                : [...rule.projectIds, p.id],
+                            })}
+                            className="w-4 h-4 accent-indigo-600 shrink-0"
+                          />
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                          <span className={`text-sm flex-1 ${selected ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
+                            {p.name}
+                          </span>
+                          {selected && (
+                            <span className="text-[10px] text-indigo-500 font-medium shrink-0">✓ bude posílat</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -295,6 +425,127 @@ function RuleEditor({ rule, projectOptions, onChange, onDelete }: RuleEditorProp
   );
 }
 
+// ── Per-project notification card ─────────────────────────────────────────────
+
+interface ProjectNotificationCardProps {
+  project: { id: string; name: string; color: string };
+  rules: NotificationRule[];
+  config: ProjectNotificationConfig | undefined;
+  onChange: (config: ProjectNotificationConfig) => void;
+}
+
+function ProjectNotificationCard({ project, rules, config, onChange }: ProjectNotificationCardProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  const isEnabled = config ? config.enabled : true;        // default: on
+  const enabledRuleIds = config?.enabledRuleIds ?? [];     // [] = all rules
+
+  function handleMasterToggle() {
+    onChange({ projectId: project.id, enabled: !isEnabled, enabledRuleIds });
+  }
+
+  function handleToggleRule(ruleId: string) {
+    let newIds: string[];
+    if (enabledRuleIds.length === 0) {
+      // Currently "all rules" mode → switch to explicit, exclude this one
+      newIds = rules.map(r => r.id).filter(id => id !== ruleId);
+    } else if (enabledRuleIds.includes(ruleId)) {
+      newIds = enabledRuleIds.filter(id => id !== ruleId);
+    } else {
+      newIds = [...enabledRuleIds, ruleId];
+      // If all rules are now explicitly listed, reset to "all" (empty = all)
+      if (newIds.length === rules.length) newIds = [];
+    }
+    onChange({ projectId: project.id, enabled: isEnabled, enabledRuleIds: newIds });
+  }
+
+  function handleReset() {
+    onChange({ projectId: project.id, enabled: isEnabled, enabledRuleIds: [] });
+  }
+
+  const isCustom = enabledRuleIds.length > 0;
+  const subLabel = isEnabled
+    ? (isCustom ? `${enabledRuleIds.length} pravidl${enabledRuleIds.length === 1 ? 'o' : enabledRuleIds.length < 5 ? 'a' : ''}` : 'všechna pravidla')
+    : 'notifikace vypnuty';
+
+  return (
+    <div className={`border rounded-xl transition-all ${isEnabled ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50/50'}`}>
+      {/* Header row */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        {/* Color dot */}
+        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
+
+        {/* Name + sublabel */}
+        <div className="flex-1 min-w-0">
+          <span className={`text-sm font-medium ${isEnabled ? 'text-gray-800' : 'text-gray-400'}`}>{project.name}</span>
+          <span className="ml-2 text-xs text-gray-400">{subLabel}</span>
+          {isCustom && isEnabled && (
+            <span className="ml-2 text-xs text-indigo-400 font-medium">vlastní výběr</span>
+          )}
+        </div>
+
+        {/* Settings (rules) expand button — only when enabled */}
+        {isEnabled && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className={`p-1.5 rounded-lg transition-colors ${expanded ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+            title="Nastavit pravidla pro tento projekt"
+          >
+            <Settings2 size={14} />
+          </button>
+        )}
+
+        {/* Master toggle */}
+        <button
+          onClick={handleMasterToggle}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${isEnabled ? 'bg-indigo-500' : 'bg-gray-300'}`}
+        >
+          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${isEnabled ? 'translate-x-4' : 'translate-x-1'}`} />
+        </button>
+      </div>
+
+      {/* Expanded rules list */}
+      {expanded && isEnabled && (
+        <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-2">
+          <p className="text-xs text-gray-500 mb-2">
+            Vyberte pravidla pro tento projekt.{' '}
+            <span className="text-gray-400">Prázdný výběr = všechna aktivní pravidla.</span>
+          </p>
+          {rules.map(rule => {
+            const TriggerIcon = rule.trigger === 'cascade' ? Zap : CalendarClock;
+            const checked = enabledRuleIds.length === 0 || enabledRuleIds.includes(rule.id);
+            return (
+              <label key={rule.id} className="flex items-center gap-2.5 cursor-pointer group py-1">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => handleToggleRule(rule.id)}
+                  className="w-4 h-4 accent-indigo-600 shrink-0"
+                />
+                <TriggerIcon size={12} className={rule.enabled ? 'text-indigo-400 shrink-0' : 'text-gray-300 shrink-0'} />
+                <span className={`text-sm ${rule.enabled ? 'text-gray-700' : 'text-gray-400'}`}>
+                  {rule.name}
+                </span>
+                {!rule.enabled && (
+                  <span className="text-[10px] text-gray-400">(pravidlo globálně vypnuto)</span>
+                )}
+              </label>
+            );
+          })}
+          {isCustom && (
+            <button
+              onClick={handleReset}
+              className="mt-1 text-xs text-gray-400 hover:text-indigo-600 transition-colors"
+            >
+              ↺ Obnovit výchozí (všechna pravidla)
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Notifikace() {
@@ -302,11 +553,13 @@ export default function Notifikace() {
     projects, notificationRules, notificationRecords,
     addNotificationRule, updateNotificationRule, deleteNotificationRule,
     syncConfirmations,
+    projectNotificationConfigs, setProjectNotificationConfig,
   } = useAppStore();
 
   const rules = notificationRules ?? defaultNotificationRules;
 
-  const [activeTab, setActiveTab] = useState<'rules' | 'history'>('rules');
+  const [activeTab, setActiveTab] = useState<'rules' | 'projects' | 'history'>('rules');
+  const [showHelp, setShowHelp] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
@@ -380,7 +633,21 @@ export default function Notifikace() {
             <p className="text-sm text-gray-500">Automatické emaily zhotovitelům při posunu termínů</p>
           </div>
         </div>
+        <button
+          onClick={() => setShowHelp(h => !h)}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+            showHelp
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+          }`}
+        >
+          <HelpCircle size={15} />
+          Nápověda
+        </button>
       </div>
+
+      {/* Help panel — collapsible */}
+      {showHelp && <HelpPanel />}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
@@ -401,7 +668,8 @@ export default function Notifikace() {
       {/* Tab bar */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
         {([
-          { key: 'rules', label: 'Pravidla notifikací', icon: Settings2 },
+          { key: 'rules', label: 'Pravidla', icon: Settings2 },
+          { key: 'projects', label: 'Projekty', icon: Building2 },
           { key: 'history', label: 'Historie', icon: Mail },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
@@ -446,6 +714,33 @@ export default function Notifikace() {
           >
             <Plus size={16} /> Přidat nové pravidlo
           </button>
+        </div>
+      )}
+
+      {/* ── PROJECTS TAB ── */}
+      {activeTab === 'projects' && (
+        <div className="space-y-3">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+            <strong>Notifikace pro projekty:</strong> Každý projekt lze individuálně zapnout / vypnout.
+            Navíc lze vybrat, která konkrétní pravidla se na projekt vztahují — výchozí stav je „všechna aktivní pravidla".
+          </div>
+
+          {projects.length === 0 ? (
+            <div className="py-12 text-center text-gray-400">
+              <Building2 size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">Zatím nebyly přidány žádné projekty</p>
+            </div>
+          ) : (
+            projects.map(project => (
+              <ProjectNotificationCard
+                key={project.id}
+                project={project}
+                rules={rules}
+                config={projectNotificationConfigs.find(c => c.projectId === project.id)}
+                onChange={setProjectNotificationConfig}
+              />
+            ))
+          )}
         </div>
       )}
 

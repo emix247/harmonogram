@@ -168,6 +168,7 @@ function NotificationProcessor() {
 function DeadlineReminderProcessor() {
   const {
     tasks, crafts, contractors, notificationRules, notificationRecords,
+    projectNotificationConfigs,
     appendPendingNotifications,
   } = useAppStore();
 
@@ -184,7 +185,13 @@ function DeadlineReminderProcessor() {
 
       const matchingTasks = tasks.filter(t => {
         const projectOk = rule.projectIds.length === 0 || rule.projectIds.includes(t.projectId);
-        return t.plannedEnd === targetDate && t.status !== 'completed' && projectOk;
+        const projConfig = (projectNotificationConfigs ?? []).find(c => c.projectId === t.projectId);
+        const projEnabled = !projConfig || projConfig.enabled;
+        const ruleAllowedForProject =
+          !projConfig ||
+          projConfig.enabledRuleIds.length === 0 ||
+          projConfig.enabledRuleIds.includes(rule.id);
+        return t.plannedEnd === targetDate && t.status !== 'completed' && projectOk && projEnabled && ruleAllowedForProject;
       });
 
       for (const task of matchingTasks) {
@@ -270,6 +277,7 @@ function extractSyncState(s: ReturnType<typeof useAppStore.getState>) {
     notificationSettings: s.notificationSettings,
     notificationRules: s.notificationRules,
     notificationRecords: s.notificationRecords,
+    projectNotificationConfigs: s.projectNotificationConfigs,
   };
 }
 
@@ -311,9 +319,12 @@ function CloudSync() {
         if (data.state && typeof data.state === 'object') {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const stateObj = data.state as any;
-          // Migrate: add notificationRules if Neon state predates this feature
+          // Migrate: add fields if Neon state predates this feature
           if (!stateObj.notificationRules) {
             stateObj.notificationRules = defaultNotificationRules;
+          }
+          if (!stateObj.projectNotificationConfigs) {
+            stateObj.projectNotificationConfigs = [];
           }
           useAppStore.setState(stateObj);
           serverTimestampRef.current = data.updatedAt ?? null;
@@ -392,6 +403,7 @@ function CloudSync() {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const stateObj = data.state as any;
               if (!stateObj.notificationRules) stateObj.notificationRules = defaultNotificationRules;
+              if (!stateObj.projectNotificationConfigs) stateObj.projectNotificationConfigs = [];
               useAppStore.setState(stateObj);
               setSyncStatus('refreshed');
               setTimeout(() => setSyncStatus('idle'), 3000);

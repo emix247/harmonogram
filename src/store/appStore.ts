@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type {
   Project, Task, Craft, Contractor, Milestone, Risk, Template,
   TaskLog, MobileReport, ConflictAlert, Company, User, Phase, ProjectObject, ProjectShare, Role, ProjectCraftAssignment,
-  NotificationSettings, NotificationRecord, PendingNotification, NotificationRule,
+  NotificationSettings, NotificationRecord, PendingNotification, NotificationRule, ProjectNotificationConfig,
 } from '../types';
 
 // =================== DEFAULT NOTIFICATION RULES ===================
@@ -894,6 +894,7 @@ interface AppState {
   notificationRules: NotificationRule[];
   notificationRecords: NotificationRecord[];
   pendingNotifications: PendingNotification[];
+  projectNotificationConfigs: ProjectNotificationConfig[];
   updateNotificationSettings: (projectId: string, enabled: boolean) => void;
   addNotificationRule: (rule: NotificationRule) => void;
   updateNotificationRule: (id: string, updates: Partial<NotificationRule>) => void;
@@ -903,6 +904,7 @@ interface AppState {
   clearPendingNotifications: () => void;
   appendPendingNotifications: (items: PendingNotification[]) => void;
   syncConfirmations: (confirmed: Record<string, string>) => void;
+  setProjectNotificationConfig: (config: ProjectNotificationConfig) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -930,6 +932,7 @@ export const useAppStore = create<AppState>()(
       notificationRules: defaultNotificationRules,
       notificationRecords: [],
       pendingNotifications: [],
+      projectNotificationConfigs: [],
 
       currentProjectId: 'p1',
       currentPage: 'dashboard',
@@ -975,10 +978,20 @@ export const useAppStore = create<AppState>()(
                 const newD = new Date(newTask.plannedStart).getTime();
                 const shiftDays = Math.round((newD - oldD) / 86400000);
 
-                // Find the first matching rule
+                // Check project-level notification config
+                const projConfig = (state.projectNotificationConfigs ?? []).find(
+                  c => c.projectId === newTask.projectId
+                );
+                if (projConfig && !projConfig.enabled) continue;
+
+                // Find the first matching rule (also filtered by per-project rule selection)
                 const matchingRule = cascadeRules.find(r => {
                   const projectOk = r.projectIds.length === 0 || r.projectIds.includes(newTask.projectId);
-                  return projectOk && Math.abs(shiftDays) >= r.minShiftDays;
+                  const ruleAllowedForProject =
+                    !projConfig ||
+                    projConfig.enabledRuleIds.length === 0 ||
+                    projConfig.enabledRuleIds.includes(r.id);
+                  return projectOk && ruleAllowedForProject && Math.abs(shiftDays) >= r.minShiftDays;
                 });
                 if (!matchingRule) continue;
 
@@ -1122,6 +1135,23 @@ export const useAppStore = create<AppState>()(
             return r;
           }),
         })),
+
+      setProjectNotificationConfig: (config) =>
+        set((state) => {
+          const existing = (state.projectNotificationConfigs ?? []).find(
+            c => c.projectId === config.projectId
+          );
+          if (existing) {
+            return {
+              projectNotificationConfigs: (state.projectNotificationConfigs ?? []).map(c =>
+                c.projectId === config.projectId ? { ...c, ...config } : c
+              ),
+            };
+          }
+          return {
+            projectNotificationConfigs: [...(state.projectNotificationConfigs ?? []), config],
+          };
+        }),
     }),
     { name: 'construction-planner-store' }
   )

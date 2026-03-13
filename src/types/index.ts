@@ -298,3 +298,10 @@ export interface PendingNotification {
   ruleId?: string;
   notificationType?: NotificationTrigger;
 }
+
+/** Per-project notification configuration — master on/off + which rules apply */
+export interface ProjectNotificationConfig {
+  projectId: string;
+  enabled: boolean;           // master on/off for all notifications in this project
+  enabledRuleIds: string[];   // empty = all active rules apply, otherwise only these rule IDs
+}
