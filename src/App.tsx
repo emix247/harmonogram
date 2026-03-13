@@ -69,7 +69,7 @@ function NotificationProcessor() {
       oldStart: string; newStart: string; oldEnd: string; newEnd: string; shiftDays: number;
       notificationType: 'cascade' | 'deadline_reminder';
       ruleId?: string;
-      emailSubject?: string; emailIntro?: string; emailFooter?: string;
+      emailSubject?: string; emailIntro?: string; emailFooter?: string; emailNote?: string;
       showConfirmButton?: boolean; ccEmails?: string[];
       daysBeforeDeadline?: number;
     }> = [];
