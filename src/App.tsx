@@ -191,7 +191,7 @@ function extractSyncState(s: ReturnType<typeof useAppStore.getState>) {
   };
 }
 
-export type SyncStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
+export type SyncStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error' | 'refreshed';
 
 // Shared sync-status signal (simple module-level so Header can read it)
 let _syncStatus: SyncStatus = 'idle';
@@ -206,25 +206,33 @@ function setSyncStatus(s: SyncStatus) {
   _syncListeners.forEach(l => l(s));
 }
 
+const POLL_INTERVAL_MS = 5000; // 5 seconds
+
 /**
  * Loads app state from Neon on mount (cloud state wins over localStorage).
- * Debounce-saves every meaningful change back to Neon.
+ * Debounce-saves every local change back to Neon.
+ * Polls every 5 s for external changes — auto-reloads if another user saved.
  */
 function CloudSync() {
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track the updated_at we last saw from the server (detects external changes)
+  const serverTimestampRef = useRef<string | null>(null);
+  // While a save is in flight / pending, skip the poll reload to avoid clobbering local edits
+  const savingRef = useRef(false);
 
   useEffect(() => {
     setSyncStatus('loading');
 
+    // ── Initial load ──────────────────────────────────────────────────────────
     fetch(`${API_BASE}/api/state`)
       .then(r => r.json())
-      .then((data: { state: unknown | null }) => {
+      .then((data: { state: unknown | null; updatedAt: string | null }) => {
         if (data.state && typeof data.state === 'object') {
-          // Cloud state overwrites localStorage — this is the single source of truth
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           useAppStore.setState(data.state as any);
         }
+        serverTimestampRef.current = data.updatedAt ?? null;
         loadedRef.current = true;
         setSyncStatus('idle');
       })
@@ -234,11 +242,12 @@ function CloudSync() {
         setTimeout(() => setSyncStatus('idle'), 4000);
       });
 
-    // Subscribe to store changes and debounce-save to Neon
+    // ── Debounce-save on every local change ───────────────────────────────────
     const unsubscribe = useAppStore.subscribe(() => {
       if (!loadedRef.current) return;
 
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      savingRef.current = true;
       setSyncStatus('saving');
 
       saveTimerRef.current = setTimeout(() => {
@@ -249,19 +258,46 @@ function CloudSync() {
           body: JSON.stringify({ state: syncState }),
         })
           .then(r => r.json())
-          .then(() => {
+          .then((res: { ok?: boolean; updatedAt?: string }) => {
+            // Store the timestamp we just saved — poll won't reload our own save
+            if (res.updatedAt) serverTimestampRef.current = res.updatedAt;
+            savingRef.current = false;
             setSyncStatus('saved');
             setTimeout(() => setSyncStatus('idle'), 2000);
           })
           .catch(() => {
+            savingRef.current = false;
             setSyncStatus('error');
             setTimeout(() => setSyncStatus('idle'), 4000);
           });
       }, 2500);
     });
 
+    // ── Poll every 5 s for external changes ───────────────────────────────────
+    const pollInterval = setInterval(() => {
+      if (!loadedRef.current || savingRef.current || saveTimerRef.current) return;
+
+      fetch(`${API_BASE}/api/state`)
+        .then(r => r.json())
+        .then((data: { state: unknown | null; updatedAt: string | null }) => {
+          if (!data.updatedAt) return;
+          // If the server timestamp is newer than what we last loaded/saved, reload
+          if (serverTimestampRef.current && data.updatedAt !== serverTimestampRef.current) {
+            serverTimestampRef.current = data.updatedAt;
+            if (data.state && typeof data.state === 'object') {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              useAppStore.setState(data.state as any);
+              setSyncStatus('refreshed');
+              setTimeout(() => setSyncStatus('idle'), 3000);
+            }
+          }
+        })
+        .catch(() => { /* silent poll failure */ });
+    }, POLL_INTERVAL_MS);
+
     return () => {
       unsubscribe();
+      clearInterval(pollInterval);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

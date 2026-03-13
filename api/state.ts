@@ -42,14 +42,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-      await sql`
+      const rows = await sql`
         INSERT INTO app_state (key, state, updated_at)
         VALUES (${STATE_KEY}, ${JSON.stringify(state)}::jsonb, NOW())
         ON CONFLICT (key) DO UPDATE
           SET state = EXCLUDED.state,
               updated_at = NOW()
+        RETURNING updated_at
       `;
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, updatedAt: rows[0].updated_at });
     } catch (err) {
       console.error('POST /api/state error:', err);
       return res.status(500).json({ error: 'Database error' });

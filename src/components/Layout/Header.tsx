@@ -27,11 +27,12 @@ function SyncIndicator() {
   if (status === 'idle') return null;
 
   const cfg: Record<SyncStatus, { icon: React.ReactNode; label: string; cls: string }> = {
-    idle:    { icon: null, label: '', cls: '' },
-    loading: { icon: <Loader size={13} className="animate-spin" />, label: 'Načítám...', cls: 'text-blue-500' },
-    saving:  { icon: <Loader size={13} className="animate-spin" />, label: 'Ukládám...', cls: 'text-blue-500' },
-    saved:   { icon: <Cloud size={13} />, label: 'Uloženo', cls: 'text-green-600' },
-    error:   { icon: <CloudOff size={13} />, label: 'Chyba sync', cls: 'text-red-500' },
+    idle:      { icon: null, label: '', cls: '' },
+    loading:   { icon: <Loader size={13} className="animate-spin" />, label: 'Načítám...', cls: 'text-blue-500' },
+    saving:    { icon: <Loader size={13} className="animate-spin" />, label: 'Ukládám...', cls: 'text-blue-500' },
+    saved:     { icon: <Cloud size={13} />, label: 'Uloženo', cls: 'text-green-600' },
+    error:     { icon: <CloudOff size={13} />, label: 'Chyba sync', cls: 'text-red-500' },
+    refreshed: { icon: <Cloud size={13} />, label: '↻ Obnoveno z cloudu', cls: 'text-indigo-600' },
   };
   const { icon, label, cls } = cfg[status];
   return (
