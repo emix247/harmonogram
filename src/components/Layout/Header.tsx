@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppStore } from '../../store/appStore';
-import { Bell, Search, Settings, CheckSquare, FolderOpen, Flag, AlertTriangle, Menu } from 'lucide-react';
+import { Bell, Search, Settings, CheckSquare, FolderOpen, Flag, AlertTriangle, Menu, Cloud, CloudOff, Loader } from 'lucide-react';
+import { getSyncStatus, subscribeSyncStatus, type SyncStatus } from '../../App';
 
 const pageTitles: Record<string, string> = {
   dashboard: 'Přehled projektů',
@@ -16,7 +17,29 @@ const pageTitles: Record<string, string> = {
   cashflow: 'Cash Flow',
   history: 'Historie změn',
   settings: 'Nastavení',
+  notifications: 'Notifikace',
 };
+
+function SyncIndicator() {
+  const [status, setStatus] = useState<SyncStatus>(getSyncStatus());
+  useEffect(() => subscribeSyncStatus(setStatus), []);
+
+  if (status === 'idle') return null;
+
+  const cfg: Record<SyncStatus, { icon: React.ReactNode; label: string; cls: string }> = {
+    idle:    { icon: null, label: '', cls: '' },
+    loading: { icon: <Loader size={13} className="animate-spin" />, label: 'Načítám...', cls: 'text-blue-500' },
+    saving:  { icon: <Loader size={13} className="animate-spin" />, label: 'Ukládám...', cls: 'text-blue-500' },
+    saved:   { icon: <Cloud size={13} />, label: 'Uloženo', cls: 'text-green-600' },
+    error:   { icon: <CloudOff size={13} />, label: 'Chyba sync', cls: 'text-red-500' },
+  };
+  const { icon, label, cls } = cfg[status];
+  return (
+    <div className={`hidden md:flex items-center gap-1.5 text-xs font-medium ${cls} select-none`}>
+      {icon}<span>{label}</span>
+    </div>
+  );
+}
 
 interface Props {
   onMenuOpen: () => void;
@@ -100,8 +123,9 @@ export default function Header({ onMenuOpen }: Props) {
         <Menu size={20} />
       </button>
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex items-center gap-3">
         <h2 className="text-base md:text-xl font-semibold text-gray-800 truncate">{pageTitles[currentPage] || 'Stavební Planovač'}</h2>
+        <SyncIndicator />
       </div>
 
       {/* Global Search — hidden on mobile */}

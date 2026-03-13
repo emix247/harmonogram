@@ -1,4 +1,4 @@
-import { useState, useEffect, Component, type ErrorInfo, type ReactNode } from 'react';
+import { useState, useEffect, useRef, Component, type ErrorInfo, type ReactNode } from 'react';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import Login from './pages/Login';
@@ -167,6 +167,109 @@ function ConfirmationSyncer() {
   return null;
 }
 
+// ── Fields synced to Neon (excludes transient / huge data) ──────────────────
+function extractSyncState(s: ReturnType<typeof useAppStore.getState>) {
+  return {
+    companies: s.companies,
+    users: s.users,
+    projects: s.projects,
+    tasks: s.tasks,
+    crafts: s.crafts,
+    contractors: s.contractors,
+    milestones: s.milestones,
+    risks: s.risks,
+    templates: s.templates,
+    phases: s.phases,
+    objects: s.objects,
+    projectShares: s.projectShares,
+    projectCraftAssignments: s.projectCraftAssignments,
+    taskOrder: s.taskOrder,
+    roles: s.roles,
+    currentProjectId: s.currentProjectId,
+    notificationSettings: s.notificationSettings,
+    notificationRecords: s.notificationRecords,
+  };
+}
+
+export type SyncStatus = 'idle' | 'loading' | 'saving' | 'saved' | 'error';
+
+// Shared sync-status signal (simple module-level so Header can read it)
+let _syncStatus: SyncStatus = 'idle';
+let _syncListeners: Array<(s: SyncStatus) => void> = [];
+export function getSyncStatus() { return _syncStatus; }
+export function subscribeSyncStatus(fn: (s: SyncStatus) => void) {
+  _syncListeners.push(fn);
+  return () => { _syncListeners = _syncListeners.filter(l => l !== fn); };
+}
+function setSyncStatus(s: SyncStatus) {
+  _syncStatus = s;
+  _syncListeners.forEach(l => l(s));
+}
+
+/**
+ * Loads app state from Neon on mount (cloud state wins over localStorage).
+ * Debounce-saves every meaningful change back to Neon.
+ */
+function CloudSync() {
+  const loadedRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setSyncStatus('loading');
+
+    fetch(`${API_BASE}/api/state`)
+      .then(r => r.json())
+      .then((data: { state: unknown | null }) => {
+        if (data.state && typeof data.state === 'object') {
+          // Cloud state overwrites localStorage — this is the single source of truth
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          useAppStore.setState(data.state as any);
+        }
+        loadedRef.current = true;
+        setSyncStatus('idle');
+      })
+      .catch(() => {
+        loadedRef.current = true;
+        setSyncStatus('error');
+        setTimeout(() => setSyncStatus('idle'), 4000);
+      });
+
+    // Subscribe to store changes and debounce-save to Neon
+    const unsubscribe = useAppStore.subscribe(() => {
+      if (!loadedRef.current) return;
+
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      setSyncStatus('saving');
+
+      saveTimerRef.current = setTimeout(() => {
+        const syncState = extractSyncState(useAppStore.getState());
+        fetch(`${API_BASE}/api/state`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: syncState }),
+        })
+          .then(r => r.json())
+          .then(() => {
+            setSyncStatus('saved');
+            setTimeout(() => setSyncStatus('idle'), 2000);
+          })
+          .catch(() => {
+            setSyncStatus('error');
+            setTimeout(() => setSyncStatus('idle'), 4000);
+          });
+      }, 2500);
+    });
+
+    return () => {
+      unsubscribe();
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
+}
+
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
   static getDerivedStateFromError(error: Error) { return { error }; }
@@ -206,7 +309,8 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Background notification processors — render nothing visible */}
+      {/* Background workers — render nothing visible */}
+      <CloudSync />
       <NotificationProcessor />
       <ConfirmationSyncer />
 
