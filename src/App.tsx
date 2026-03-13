@@ -229,12 +229,34 @@ function CloudSync() {
       .then(r => r.json())
       .then((data: { state: unknown | null; updatedAt: string | null }) => {
         if (data.state && typeof data.state === 'object') {
+          // Neon has data → it is the source of truth, overwrite localStorage
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           useAppStore.setState(data.state as any);
+          serverTimestampRef.current = data.updatedAt ?? null;
+          loadedRef.current = true;
+          setSyncStatus('idle');
+        } else {
+          // Neon is empty → push current localStorage state to Neon immediately
+          serverTimestampRef.current = null;
+          loadedRef.current = true;
+          setSyncStatus('saving');
+          const localState = extractSyncState(useAppStore.getState());
+          fetch(`${API_BASE}/api/state`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ state: localState }),
+          })
+            .then(r => r.json())
+            .then((res: { ok?: boolean; updatedAt?: string }) => {
+              if (res.updatedAt) serverTimestampRef.current = res.updatedAt;
+              setSyncStatus('saved');
+              setTimeout(() => setSyncStatus('idle'), 2000);
+            })
+            .catch(() => {
+              setSyncStatus('error');
+              setTimeout(() => setSyncStatus('idle'), 4000);
+            });
         }
-        serverTimestampRef.current = data.updatedAt ?? null;
-        loadedRef.current = true;
-        setSyncStatus('idle');
       })
       .catch(() => {
         loadedRef.current = true;
@@ -282,7 +304,7 @@ function CloudSync() {
         .then((data: { state: unknown | null; updatedAt: string | null }) => {
           if (!data.updatedAt) return;
           // If the server timestamp is newer than what we last loaded/saved, reload
-          if (serverTimestampRef.current && data.updatedAt !== serverTimestampRef.current) {
+          if (data.updatedAt && data.updatedAt !== serverTimestampRef.current) {
             serverTimestampRef.current = data.updatedAt;
             if (data.state && typeof data.state === 'object') {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
