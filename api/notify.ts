@@ -24,8 +24,8 @@ function formatDate(dateStr: string): string {
 }
 
 function shiftLabel(days: number): string {
-  if (days > 0) return `o ${days} dní dopředu`;
-  if (days < 0) return `o ${Math.abs(days)} dní dozadu`;
+  if (days > 0) return `o ${days} dní`;
+  if (days < 0) return `o ${Math.abs(days)} dní`;
   return 'beze změny';
 }
 

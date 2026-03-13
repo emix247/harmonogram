@@ -37,7 +37,7 @@ const CASCADE_VARS = [
   { key: '{{starePozadanaNastup}}', desc: 'Původní datum nástupu' },
   { key: '{{novyNastup}}', desc: 'Nové datum nástupu' },
   { key: '{{novyKonec}}', desc: 'Nové datum dokončení' },
-  { key: '{{posun}}', desc: 'Popis posunu (např. o 7 dní dopředu)' },
+  { key: '{{posun}}', desc: 'Popis posunu (např. o 7 dní)' },
 ];
 
 const REMINDER_VARS = [
