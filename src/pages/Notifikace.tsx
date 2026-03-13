@@ -135,7 +135,7 @@ function HelpPanel() {
         <p>Příklad: <code className="bg-gray-100 px-1 rounded font-mono">{'{{ukolNazev}}'}</code> → „Zdivo přízemí – Dům č. 1"</p>
         <p>Klikněte na proměnnou ve spodním panelu pravidla pro <strong>zkopírování do schránky</strong>.</p>
         <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2.5">
-          <strong>CC emaily:</strong> Adresy oddělené čárkou, které obdrží kopii každého emailu z tohoto pravidla (nezávisle na hlavním příjemci — zhotoviteli).
+          <strong>Poslat kopii zprávy na email:</strong> Adresy oddělené čárkou, které obdrží kopii každého emailu z tohoto pravidla (nezávisle na hlavním příjemci — zhotoviteli).
         </div>
       </HelpSection>
 
@@ -273,7 +273,7 @@ function RuleEditor({ rule, projectOptions, onChange, onDelete }: RuleEditorProp
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">CC emaily</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Poslat kopii zprávy na email:</label>
               <input
                 type="text"
                 value={rule.ccEmails.join(', ')}
