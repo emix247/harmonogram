@@ -76,9 +76,10 @@ const DEFAULT_FOOTER  = 'Tato zpráva byla automaticky odeslána systémem Plán
 const DEFAULT_REMINDER_SUBJECT  = 'Připomínka: {{ukolNazev}} za {{dniDoKonce}} dní';
 const DEFAULT_REMINDER_INTRO    = 'dovolujeme si Vám připomenout blížící se termín Vašeho úkolu. Ujistěte se prosím, že práce probíhají dle plánu a termín bude dodržen.';
 const DEFAULT_REMINDER_FOOTER   = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb.';
-const DEFAULT_INTERNAL_SUBJECT  = 'Interní připomínka: {{ukolNazev}} za {{dniDo}} dní';
-const DEFAULT_INTERNAL_INTRO    = 'Za {{dniDo}} dní začíná úkol {{ukolNazev}}. Zkontrolujte prosím přípravu.';
-const DEFAULT_INTERNAL_FOOTER   = 'Interní zpráva systému Plánování staveb.';
+const DEFAULT_INTERNAL_SUBJECT  = 'Upomínka: {{ukolNazev}} (nástup {{novyNastup}})';
+const DEFAULT_INTERNAL_INTRO    = 'Upomínka úkolu: {{ukolNazev}} začíná {{datumZahajeni}} - je potřeba zajistit materiál.';
+const DEFAULT_INTERNAL_FOOTER   = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb.';
+const DEFAULT_INTERNAL_NOTE     = 'Beru na vědomí, mám zajištěno, nebo zajistím.';
 
 // ── Email builder ─────────────────────────────────────────────────────────────
 

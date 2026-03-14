@@ -262,7 +262,20 @@ function RuleEditor({ rule, projectOptions, onChange, onDelete }: RuleEditorProp
               ] as const).map(t => (
                 <button
                   key={t.value}
-                  onClick={() => onChange({ trigger: t.value })}
+                  onClick={() => {
+                    if (t.value === 'internal_reminder') {
+                      onChange({
+                        trigger: t.value,
+                        emailSubject: 'Upomínka: {{ukolNazev}} (nástup {{novyNastup}})',
+                        emailIntro: 'Upomínka úkolu: {{ukolNazev}} začíná {{datumZahajeni}} - je potřeba zajistit materiál.',
+                        emailFooter: 'Tato zpráva byla automaticky odeslána systémem Plánování staveb.',
+                        emailNote: 'Beru na vědomí, mám zajištěno, nebo zajistím.',
+                        showConfirmButton: true,
+                      });
+                    } else {
+                      onChange({ trigger: t.value });
+                    }
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                     rule.trigger === t.value
                       ? t.value === 'internal_reminder'
