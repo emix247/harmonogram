@@ -58,7 +58,8 @@ export interface NotifyItem {
   emailNote?: string;
   showConfirmButton?: boolean;
   ccEmails?: string[];
-  // deadline_reminder extra
+  internalEmails?: string[];
+  // deadline_reminder / internal_reminder extra
   daysBeforeDeadline?: number;
 }
 
@@ -72,43 +73,67 @@ const DEFAULT_SUBJECT = 'Změna termínu: {{ukolNazev}} (nástup {{novyNastup}})
 const DEFAULT_INTRO   = 'z důvodu posunu předcházejících prací došlo ke změně termínu zahájení Vašeho úkolu. Prosíme o potvrzení, že nový termín berete na vědomí a je pro Vás akceptovatelný.';
 const DEFAULT_FOOTER  = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb. Tlačítko slouží k potvrzení přijetí informace, nevyžaduje přihlášení.';
 
-const DEFAULT_REMINDER_SUBJECT = 'Připomínka: {{ukolNazev}} za {{dniDoKonce}} dní';
-const DEFAULT_REMINDER_INTRO   = 'dovolujeme si Vám připomenout blížící se termín Vašeho úkolu. Ujistěte se prosím, že práce probíhají dle plánu a termín bude dodržen.';
-const DEFAULT_REMINDER_FOOTER  = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb.';
+const DEFAULT_REMINDER_SUBJECT  = 'Připomínka: {{ukolNazev}} za {{dniDoKonce}} dní';
+const DEFAULT_REMINDER_INTRO    = 'dovolujeme si Vám připomenout blížící se termín Vašeho úkolu. Ujistěte se prosím, že práce probíhají dle plánu a termín bude dodržen.';
+const DEFAULT_REMINDER_FOOTER   = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb.';
+const DEFAULT_INTERNAL_SUBJECT  = 'Interní připomínka: {{ukolNazev}} za {{dniDo}} dní';
+const DEFAULT_INTERNAL_INTRO    = 'Za {{dniDo}} dní začíná úkol {{ukolNazev}}. Zkontrolujte prosím přípravu.';
+const DEFAULT_INTERNAL_FOOTER   = 'Interní zpráva systému Plánování staveb.';
 
 // ── Email builder ─────────────────────────────────────────────────────────────
 
 function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html: string } {
-  const isReminder = n.notificationType === 'deadline_reminder';
+  const isReminder  = n.notificationType === 'deadline_reminder';
+  const isInternal  = n.notificationType === 'internal_reminder';
+  const dniDo       = n.daysBeforeDeadline != null ? String(n.daysBeforeDeadline) : '—';
 
   const vars: Record<string, string> = {
-    zhotovitel: n.contractorName,
-    ukolNazev: n.taskName,
-    projektNazev: n.projectName,
+    zhotovitel:          n.contractorName,
+    ukolNazev:           n.taskName,
+    projektNazev:        n.projectName,
     starePozadanaNastup: formatDate(n.oldStart),
-    novyNastup: formatDate(n.newStart),
-    novyKonec: formatDate(n.newEnd),
-    posun: shiftLabel(n.shiftDays),
-    datumKonce: formatDate(n.newEnd),
-    dniDoKonce: n.daysBeforeDeadline != null ? String(n.daysBeforeDeadline) : '—',
+    novyNastup:          formatDate(n.newStart),
+    novyKonec:           formatDate(n.newEnd),
+    posun:               shiftLabel(n.shiftDays),
+    datumKonce:          formatDate(n.newEnd),
+    datumZahajeni:       formatDate(n.newStart),
+    datumDokonceni:      formatDate(n.newEnd),
+    dniDoKonce:          dniDo,
+    dniDo:               dniDo,
   };
 
-  const subject = renderVars(
-    n.emailSubject ?? (isReminder ? DEFAULT_REMINDER_SUBJECT : DEFAULT_SUBJECT),
-    vars
-  );
-  const intro = renderVars(
-    n.emailIntro ?? (isReminder ? DEFAULT_REMINDER_INTRO : DEFAULT_INTRO),
-    vars
-  );
-  const footer = renderVars(
-    n.emailFooter ?? (isReminder ? DEFAULT_REMINDER_FOOTER : DEFAULT_FOOTER),
-    vars
-  );
-  const showConfirm = n.showConfirmButton ?? !isReminder;
+  const defaultSubject = isInternal ? DEFAULT_INTERNAL_SUBJECT
+    : isReminder ? DEFAULT_REMINDER_SUBJECT : DEFAULT_SUBJECT;
+  const defaultIntro   = isInternal ? DEFAULT_INTERNAL_INTRO
+    : isReminder ? DEFAULT_REMINDER_INTRO : DEFAULT_INTRO;
+  const defaultFooter  = isInternal ? DEFAULT_INTERNAL_FOOTER
+    : isReminder ? DEFAULT_REMINDER_FOOTER : DEFAULT_FOOTER;
 
-  // Date table section (cascade shows old→new; reminder shows deadline only)
-  const dateTableHtml = isReminder ? `
+  const subject     = renderVars(n.emailSubject ?? defaultSubject, vars);
+  const intro       = renderVars(n.emailIntro   ?? defaultIntro,   vars);
+  const footer      = renderVars(n.emailFooter  ?? defaultFooter,  vars);
+  const showConfirm = n.showConfirmButton ?? false;
+
+  // ── Date table ────────────────────────────────────────────────────────────
+  const dateTableHtml = isInternal ? `
+    <div class="task-box">
+      <div class="task-name">${n.taskName}</div>
+      <div class="date-row">
+        <div class="date-block">
+          <div class="date-label">Datum zahájení</div>
+          <div class="date-value new-date">${formatDate(n.newStart)}</div>
+        </div>
+        <div class="date-block">
+          <div class="date-label">Datum dokončení</div>
+          <div class="date-value" style="color:#374151">${formatDate(n.newEnd)}</div>
+        </div>
+        <div class="date-block">
+          <div class="date-label">Zbývá dní</div>
+          <div class="date-value" style="color:#b45309">${dniDo}</div>
+        </div>
+      </div>
+    </div>`
+  : isReminder ? `
     <div class="task-box">
       <div class="task-name">${n.taskName}</div>
       <div class="date-row">
@@ -118,7 +143,7 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
         </div>
         <div class="date-block">
           <div class="date-label">Zbývá dní</div>
-          <div class="date-value" style="color:#b45309">${vars.dniDoKonce}</div>
+          <div class="date-value" style="color:#b45309">${dniDo}</div>
         </div>
       </div>
     </div>` : `
@@ -146,6 +171,14 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
       <a href="${confirmUrl}">✓ Potvrzuji nový termín</a>
     </div>` : '';
 
+  // ── Header colour: blue (contractor) vs amber (internal) ──────────────────
+  const headerBg = isInternal ? '#b45309' : '#1e40af';
+  const headerTitle = isInternal ? 'Interní připomínka'
+    : isReminder ? 'Připomínka termínu' : 'Změna termínu zahájení';
+  const greeting = isInternal
+    ? '<p class="greeting">Dobrý den,</p>'
+    : `<p class="greeting">Dobrý den, ${n.contractorName},</p>`;
+
   const html = `<!DOCTYPE html>
 <html lang="cs">
 <head>
@@ -155,13 +188,13 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
   <style>
     body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
     .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-    .header { background: #1e40af; color: #fff; padding: 24px 32px; }
+    .header { background: ${headerBg}; color: #fff; padding: 24px 32px; }
     .header h1 { margin: 0; font-size: 20px; }
     .header p { margin: 6px 0 0; opacity: 0.85; font-size: 14px; }
     .body { padding: 28px 32px; }
     .greeting { font-size: 16px; color: #111827; margin-bottom: 16px; }
     .task-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px; margin: 20px 0; }
-    .task-box .task-name { font-weight: 700; font-size: 17px; color: #1e40af; margin-bottom: 12px; }
+    .task-box .task-name { font-weight: 700; font-size: 17px; color: ${isInternal ? '#b45309' : '#1e40af'}; margin-bottom: 12px; }
     .date-row { display: flex; gap: 20px; flex-wrap: wrap; }
     .date-block { flex: 1; min-width: 130px; }
     .date-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 4px; }
@@ -177,11 +210,11 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
 <body>
   <div class="container">
     <div class="header">
-      <h1>${isReminder ? 'Připomínka termínu' : 'Změna termínu zahájení'}</h1>
+      <h1>${headerTitle}</h1>
       <p>Projekt: ${n.projectName}</p>
     </div>
     <div class="body">
-      <p class="greeting">Dobrý den, ${n.contractorName},</p>
+      ${greeting}
       <p>${intro}</p>
       ${dateTableHtml}
       ${confirmBtnHtml}
@@ -235,10 +268,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 2. Build email
       const { subject, html } = buildEmail(n, confirmUrl);
 
-      // 3. Send
+      // 3. Send — internal_reminder goes to internalEmails, others to contractorEmail
+      const toAddr = n.notificationType === 'internal_reminder'
+        ? (n.internalEmails?.join(',') ?? n.contractorEmail)
+        : n.contractorEmail;
       await transporter.sendMail({
         from: `"Tesgrup Development" <${process.env.GMAIL_USER}>`,
-        to: n.contractorEmail,
+        to: toAddr,
         cc: n.ccEmails?.length ? n.ccEmails.join(',') : undefined,
         subject,
         html,

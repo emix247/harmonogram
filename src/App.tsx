@@ -67,10 +67,10 @@ function NotificationProcessor() {
       taskId: string; taskName: string; projectId: string; projectName: string;
       contractorId: string; contractorName: string; contractorEmail: string;
       oldStart: string; newStart: string; oldEnd: string; newEnd: string; shiftDays: number;
-      notificationType: 'cascade' | 'deadline_reminder';
+      notificationType: 'cascade' | 'deadline_reminder' | 'internal_reminder';
       ruleId?: string;
       emailSubject?: string; emailIntro?: string; emailFooter?: string; emailNote?: string;
-      showConfirmButton?: boolean; ccEmails?: string[];
+      showConfirmButton?: boolean; ccEmails?: string[]; internalEmails?: string[];
       daysBeforeDeadline?: number;
     }> = [];
 
@@ -79,39 +79,70 @@ function NotificationProcessor() {
       if (!task) continue;
 
       const rule = pending.ruleId ? rules.find(r => r.id === pending.ruleId) : undefined;
-
-      const craft = crafts.find(c => c.id === task.craftId);
-      const contractorId = task.contractorId || craft?.contractorId || '';
-      const contractor = contractors.find(c => c.id === contractorId);
-      if (!contractor?.email) continue;
+      const isInternal = pending.notificationType === 'internal_reminder';
 
       const project = projects.find(p => p.id === task.projectId);
 
-      notifications.push({
-        taskId: task.id,
-        taskName: task.name,
-        projectId: task.projectId,
-        projectName: project?.name ?? task.projectId,
-        contractorId,
-        contractorName: contractor.name,
-        contractorEmail: contractor.email,
-        oldStart: pending.oldStart,
-        newStart: pending.newStart,
-        oldEnd: pending.oldEnd,
-        newEnd: pending.newEnd,
-        shiftDays: pending.shiftDays,
-        notificationType: pending.notificationType ?? 'cascade',
-        ruleId: pending.ruleId,
-        emailSubject: rule?.emailSubject,
-        emailIntro: rule?.emailIntro,
-        emailFooter: rule?.emailFooter,
-        emailNote: rule?.emailNote,
-        showConfirmButton: rule?.showConfirmButton,
-        ccEmails: rule?.ccEmails,
-        daysBeforeDeadline: pending.notificationType === 'deadline_reminder'
-          ? rule?.daysBeforeDeadline
-          : undefined,
-      });
+      // For internal reminders skip contractor lookup — email goes to rule.internalEmails
+      if (!isInternal) {
+        const craft = crafts.find(c => c.id === task.craftId);
+        const contractorId = task.contractorId || craft?.contractorId || '';
+        const contractor = contractors.find(c => c.id === contractorId);
+        if (!contractor?.email) continue;
+
+        notifications.push({
+          taskId: task.id,
+          taskName: task.name,
+          projectId: task.projectId,
+          projectName: project?.name ?? task.projectId,
+          contractorId,
+          contractorName: contractor.name,
+          contractorEmail: contractor.email,
+          oldStart: pending.oldStart,
+          newStart: pending.newStart,
+          oldEnd: pending.oldEnd,
+          newEnd: pending.newEnd,
+          shiftDays: pending.shiftDays,
+          notificationType: pending.notificationType ?? 'cascade',
+          ruleId: pending.ruleId,
+          emailSubject: rule?.emailSubject,
+          emailIntro: rule?.emailIntro,
+          emailFooter: rule?.emailFooter,
+          emailNote: rule?.emailNote,
+          showConfirmButton: rule?.showConfirmButton,
+          ccEmails: rule?.ccEmails,
+          daysBeforeDeadline: pending.notificationType === 'deadline_reminder'
+            ? rule?.daysBeforeDeadline : undefined,
+        });
+      } else {
+        // Internal reminder — no contractor needed
+        const internalEmails = rule?.internalEmails ?? [];
+        if (internalEmails.length === 0) continue; // skip if no recipients configured
+        notifications.push({
+          taskId: task.id,
+          taskName: task.name,
+          projectId: task.projectId,
+          projectName: project?.name ?? task.projectId,
+          contractorId: '',
+          contractorName: '',
+          contractorEmail: '',
+          oldStart: task.plannedStart,
+          newStart: task.plannedStart,
+          oldEnd: task.plannedEnd,
+          newEnd: task.plannedEnd,
+          shiftDays: 0,
+          notificationType: 'internal_reminder',
+          ruleId: pending.ruleId,
+          emailSubject: rule?.emailSubject,
+          emailIntro: rule?.emailIntro,
+          emailFooter: rule?.emailFooter,
+          emailNote: rule?.emailNote,
+          showConfirmButton: rule?.showConfirmButton ?? false,
+          ccEmails: rule?.ccEmails,
+          internalEmails,
+          daysBeforeDeadline: rule?.daysBeforeDeadline,
+        });
+      }
     }
 
     // Clear pending immediately to avoid re-processing
@@ -218,6 +249,69 @@ function DeadlineReminderProcessor() {
           shiftDays: 0,
           ruleId: rule.id,
           notificationType: 'deadline_reminder',
+        });
+      }
+    }
+
+    if (newPending.length > 0) appendPendingNotifications(newPending);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  return null;
+}
+
+/**
+ * On app load, checks internal_reminder rules and queues notifications
+ * for tasks whose plannedStart is rule.daysBeforeDeadline days from today.
+ * Sends to rule.internalEmails — skips contractor lookup.
+ */
+function InternalReminderProcessor() {
+  const {
+    tasks, notificationRules, notificationRecords,
+    appendPendingNotifications,
+  } = useAppStore();
+
+  useEffect(() => {
+    const rules = notificationRules ?? defaultNotificationRules;
+    const internalRules = rules.filter(r => r.enabled && r.trigger === 'internal_reminder');
+    if (internalRules.length === 0) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const newPending: PendingNotification[] = [];
+
+    for (const rule of internalRules) {
+      if (!rule.internalEmails?.length) continue; // no recipients = skip
+
+      const targetDate = addDaysStr(today, rule.daysBeforeDeadline);
+
+      const matchingTasks = tasks.filter(t => {
+        if (t.status === 'completed') return false;
+        // If specific taskIds are set, only match those; otherwise use projectIds filter
+        if (rule.internalTaskIds && rule.internalTaskIds.length > 0) {
+          return rule.internalTaskIds.includes(t.id) && t.plannedStart === targetDate;
+        }
+        const projectOk = rule.projectIds.length === 0 || rule.projectIds.includes(t.projectId);
+        return t.plannedStart === targetDate && projectOk;
+      });
+
+      for (const task of matchingTasks) {
+        const alreadySent = notificationRecords.some(r =>
+          r.taskId === task.id &&
+          r.ruleId === rule.id &&
+          r.notificationType === 'internal_reminder' &&
+          r.sentAt?.startsWith(today)
+        );
+        if (alreadySent) continue;
+
+        newPending.push({
+          taskId: task.id,
+          oldStart: task.plannedStart,
+          newStart: task.plannedStart,
+          oldEnd: task.plannedEnd,
+          newEnd: task.plannedEnd,
+          shiftDays: 0,
+          ruleId: rule.id,
+          notificationType: 'internal_reminder',
         });
       }
     }
@@ -469,6 +563,7 @@ export default function App() {
       <NotificationProcessor />
       <ConfirmationSyncer />
       <DeadlineReminderProcessor />
+      <InternalReminderProcessor />
 
       {/* Mobile overlay */}
       {sidebarOpen && (

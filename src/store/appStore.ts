@@ -29,6 +29,8 @@ export const defaultNotificationRules: NotificationRule[] = [
     emailNote: DEFAULT_EMAIL_NOTE,
     showConfirmButton: true,
     ccEmails: [],
+    internalEmails: [],
+    internalTaskIds: [],
   },
   {
     id: 'default-reminder',
@@ -44,6 +46,8 @@ export const defaultNotificationRules: NotificationRule[] = [
     emailNote: DEFAULT_EMAIL_NOTE,
     showConfirmButton: false,
     ccEmails: [],
+    internalEmails: [],
+    internalTaskIds: [],
   },
 ];
 

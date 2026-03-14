@@ -240,7 +240,7 @@ export interface NotificationSettings {
 }
 
 export type NotificationStatus = 'sent' | 'confirmed' | 'error';
-export type NotificationTrigger = 'cascade' | 'deadline_reminder';
+export type NotificationTrigger = 'cascade' | 'deadline_reminder' | 'internal_reminder';
 
 /** A configurable notification rule — one rule = one email template + trigger config */
 export interface NotificationRule {
@@ -264,6 +264,9 @@ export interface NotificationRule {
   emailNote: string;       // small note below confirm button (e.g. contact info)
   showConfirmButton: boolean;
   ccEmails: string[];
+  // internal_reminder specific
+  internalEmails?: string[];   // recipients (not contractor) — for internal_reminder
+  internalTaskIds?: string[];  // specific task IDs to watch (empty = all in projectIds)
 }
 
 export interface NotificationRecord {

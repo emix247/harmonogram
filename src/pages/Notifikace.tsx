@@ -4,7 +4,7 @@ import type { NotificationRule, ProjectNotificationConfig } from '../types';
 import {
   Bell, CheckCircle, Clock, XCircle, Mail, RefreshCw,
   ChevronDown, ChevronUp, Plus, Trash2, Settings2,
-  Zap, CalendarClock, Copy, Building2, HelpCircle,
+  Zap, CalendarClock, Copy, Building2, HelpCircle, Users, Search,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -48,8 +48,16 @@ const REMINDER_VARS = [
   { key: '{{dniDoKonce}}', desc: 'Počet dní do konce' },
 ];
 
-function VarsChips({ trigger }: { trigger: 'cascade' | 'deadline_reminder' }) {
-  const vars = trigger === 'cascade' ? CASCADE_VARS : REMINDER_VARS;
+const INTERNAL_VARS = [
+  { key: '{{ukolNazev}}', desc: 'Název úkolu' },
+  { key: '{{projektNazev}}', desc: 'Název projektu' },
+  { key: '{{datumZahajeni}}', desc: 'Datum zahájení úkolu' },
+  { key: '{{datumDokonceni}}', desc: 'Datum dokončení úkolu' },
+  { key: '{{dniDo}}', desc: 'Počet dní do zahájení' },
+];
+
+function VarsChips({ trigger }: { trigger: 'cascade' | 'deadline_reminder' | 'internal_reminder' }) {
+  const vars = trigger === 'cascade' ? CASCADE_VARS : trigger === 'internal_reminder' ? INTERNAL_VARS : REMINDER_VARS;
   return (
     <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Dostupné proměnné</p>
@@ -147,6 +155,18 @@ function HelpPanel() {
         </div>
       </HelpSection>
 
+      <HelpSection title="👥 Připomínka interní — pro váš tým">
+        <p>Tento typ pravidla <strong>neposílá email zhotovitelům</strong>, ale <strong>vašemu vlastnímu týmu</strong> na zadané emaily. Ideální pro interní přípravu stavby — např. „Za 30 dní začínají střechy, máme objednané materiály?"</p>
+        <ul className="list-disc list-inside space-y-1 mt-1">
+          <li><strong>Příjemci</strong> — zadejte emaily vašeho týmu oddělené čárkou</li>
+          <li><strong>Dní před zahájením</strong> — připomínka se odešle N dní před <em>začátkem</em> úkolu (plannedStart)</li>
+          <li><strong>Hlídané úkoly</strong> — vyberte konkrétní úkoly, nebo nechte prázdné pro všechny úkoly ve vybraných projektech</li>
+        </ul>
+        <div className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5">
+          💡 Email má <strong>oranžovou hlavičku</strong> (odlišení od dodavatelských emailů). Tlačítko Potvrzuji termín je výchozím nastavením vypnuté.
+        </div>
+      </HelpSection>
+
       <HelpSection title="📊 Záložka Projekty — individuální nastavení">
         <p>Každý projekt má vlastní přepínač a výběr pravidel:</p>
         <ul className="list-disc list-inside space-y-1 mt-1">
@@ -173,8 +193,12 @@ interface RuleEditorProps {
 function RuleEditor({ rule, projectOptions, onChange, onDelete }: RuleEditorProps) {
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [taskSearch, setTaskSearch] = useState('');
 
-  const TriggerIcon = rule.trigger === 'cascade' ? Zap : CalendarClock;
+  const { tasks, projects } = useAppStore();
+
+  const TriggerIcon = rule.trigger === 'cascade' ? Zap : rule.trigger === 'internal_reminder' ? Users : CalendarClock;
+  const isInternal = rule.trigger === 'internal_reminder';
 
   return (
     <div className={`border rounded-xl transition-all ${rule.enabled ? 'border-gray-200' : 'border-gray-100 bg-gray-50/50'}`}>
@@ -189,13 +213,15 @@ function RuleEditor({ rule, projectOptions, onChange, onDelete }: RuleEditorProp
         </button>
 
         {/* Icon + name */}
-        <TriggerIcon size={14} className={rule.enabled ? 'text-indigo-500' : 'text-gray-400'} />
+        <TriggerIcon size={14} className={rule.enabled ? (isInternal ? 'text-amber-500' : 'text-indigo-500') : 'text-gray-400'} />
         <div className="flex-1 min-w-0">
           <span className={`text-sm font-medium ${rule.enabled ? 'text-gray-800' : 'text-gray-400'}`}>{rule.name}</span>
           <span className="ml-2 text-xs text-gray-400">
             {rule.trigger === 'cascade'
               ? `posun ≥ ${rule.minShiftDays} ${rule.minShiftDays === 1 ? 'den' : 'dní'}`
-              : `${rule.daysBeforeDeadline} dní před termínem`}
+              : isInternal
+                ? `${rule.daysBeforeDeadline} dní před zahájením · ${(rule.internalTaskIds ?? []).length === 0 ? 'všechny úkoly' : `${(rule.internalTaskIds ?? []).length} úkolů`}`
+                : `${rule.daysBeforeDeadline} dní před termínem`}
             {rule.projectIds.length > 0 && ` · ${rule.projectIds.length} projekt${rule.projectIds.length > 1 ? 'y' : ''}`}
           </span>
         </div>
@@ -228,22 +254,32 @@ function RuleEditor({ rule, projectOptions, onChange, onDelete }: RuleEditorProp
           {/* Trigger type */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Typ spuštění</label>
-            <div className="flex gap-2">
-              {(['cascade', 'deadline_reminder'] as const).map(t => (
+            <div className="flex flex-wrap gap-2">
+              {([
+                { value: 'cascade',           icon: <Zap size={12} />,          label: 'Posun kaskádou' },
+                { value: 'deadline_reminder', icon: <CalendarClock size={12} />, label: 'Připomínka termínu' },
+                { value: 'internal_reminder', icon: <Users size={12} />,         label: 'Připomínka interní' },
+              ] as const).map(t => (
                 <button
-                  key={t}
-                  onClick={() => onChange({ trigger: t })}
+                  key={t.value}
+                  onClick={() => onChange({ trigger: t.value })}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                    rule.trigger === t
-                      ? 'bg-indigo-600 text-white border-indigo-600'
+                    rule.trigger === t.value
+                      ? t.value === 'internal_reminder'
+                        ? 'bg-amber-600 text-white border-amber-600'
+                        : 'bg-indigo-600 text-white border-indigo-600'
                       : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-300'
                   }`}
                 >
-                  {t === 'cascade' ? <Zap size={12} /> : <CalendarClock size={12} />}
-                  {t === 'cascade' ? 'Posun kaskádou' : 'Připomínka termínu'}
+                  {t.icon}{t.label}
                 </button>
               ))}
             </div>
+            {isInternal && (
+              <p className="text-[10px] text-amber-600 mt-1.5">
+                Interní připomínka se posílá na vaše zadané emaily, ne zhotovitelům. Ideální pro interní přípravu stavby.
+              </p>
+            )}
           </div>
 
           {/* Trigger config */}
@@ -261,28 +297,132 @@ function RuleEditor({ rule, projectOptions, onChange, onDelete }: RuleEditorProp
               </div>
             ) : (
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Dní před termínem</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  {isInternal ? 'Dní před zahájením' : 'Dní před termínem'}
+                </label>
                 <input
-                  type="number" min={1} max={90}
+                  type="number" min={1} max={365}
                   value={rule.daysBeforeDeadline}
                   onChange={e => onChange({ daysBeforeDeadline: Math.max(1, parseInt(e.target.value) || 1) })}
                   className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 />
-                <p className="text-[10px] text-gray-400 mt-1">Poslat N dní před koncem úkolu</p>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {isInternal ? 'Poslat N dní před zahájením úkolu' : 'Poslat N dní před koncem úkolu'}
+                </p>
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Poslat kopii zprávy na email:</label>
-              <input
-                type="text"
-                value={rule.ccEmails.join(', ')}
-                onChange={e => onChange({ ccEmails: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                placeholder="email1@firma.cz, email2@firma.cz"
-                className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
+            {isInternal ? (
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Příjemci (interní emaily)</label>
+                <input
+                  type="text"
+                  value={(rule.internalEmails ?? []).join(', ')}
+                  onChange={e => onChange({ internalEmails: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                  placeholder="vas@firma.cz, kolega@firma.cz"
+                  className="w-full text-sm border border-amber-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Emaily vašeho týmu oddělené čárkou</p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Poslat kopii zprávy na email:</label>
+                <input
+                  type="text"
+                  value={rule.ccEmails.join(', ')}
+                  onChange={e => onChange({ ccEmails: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                  placeholder="email1@firma.cz, email2@firma.cz"
+                  className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
+            )}
           </div>
+
+          {/* Internal: task picker */}
+          {isInternal && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Hlídané úkoly
+                <span className="ml-1 font-normal text-gray-400">
+                  {(rule.internalTaskIds ?? []).length === 0
+                    ? '(prázdné = všechny úkoly ve vybraných projektech)'
+                    : `(${(rule.internalTaskIds ?? []).length} vybraných)`}
+                </span>
+              </label>
+              {/* Search */}
+              <div className="relative mb-2">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={taskSearch}
+                  onChange={e => setTaskSearch(e.target.value)}
+                  placeholder="Hledat úkol..."
+                  className="w-full text-sm border border-gray-300 rounded-lg pl-7 pr-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+              {/* Task list grouped by project */}
+              <div className="max-h-52 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                {projects
+                  .filter(p => rule.projectIds.length === 0 || rule.projectIds.includes(p.id))
+                  .map(project => {
+                    const projectTasks = tasks.filter(t =>
+                      t.projectId === project.id &&
+                      t.status !== 'completed' &&
+                      (!taskSearch || t.name.toLowerCase().includes(taskSearch.toLowerCase()))
+                    );
+                    if (projectTasks.length === 0) return null;
+                    return (
+                      <div key={project.id}>
+                        <div className="px-3 py-1.5 bg-gray-50 text-[10px] font-semibold text-gray-500 uppercase tracking-wide sticky top-0">
+                          {project.name}
+                        </div>
+                        {projectTasks.map(task => {
+                          const selected = (rule.internalTaskIds ?? []).includes(task.id);
+                          return (
+                            <label key={task.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-amber-50 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                className="w-4 h-4 accent-amber-600 shrink-0"
+                                onChange={() => {
+                                  const current = rule.internalTaskIds ?? [];
+                                  onChange({
+                                    internalTaskIds: selected
+                                      ? current.filter(id => id !== task.id)
+                                      : [...current, task.id],
+                                  });
+                                }}
+                              />
+                              <span className="flex-1 text-sm text-gray-700">{task.name}</span>
+                              <span className="text-[10px] text-gray-400 shrink-0">
+                                {task.plannedStart ? new Date(task.plannedStart).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' }) : ''}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                {tasks.filter(t =>
+                  (rule.projectIds.length === 0 || rule.projectIds.includes(t.projectId)) &&
+                  t.status !== 'completed' &&
+                  (!taskSearch || t.name.toLowerCase().includes(taskSearch.toLowerCase()))
+                ).length === 0 && (
+                  <div className="px-3 py-4 text-center text-sm text-gray-400">
+                    {taskSearch ? 'Žádný úkol neodpovídá hledání' : 'Žádné aktivní úkoly'}
+                  </div>
+                )}
+              </div>
+              {(rule.internalTaskIds ?? []).length > 0 && (
+                <button
+                  onClick={() => onChange({ internalTaskIds: [] })}
+                  className="mt-1.5 text-[10px] text-amber-600 hover:underline"
+                >
+                  ↺ Zrušit výběr (všechny úkoly)
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Project filter */}
           {projectOptions.length > 0 && (
@@ -600,6 +740,8 @@ export default function Notifikace() {
       emailNote: 'Pokud máte dotazy, odpovězte prosím na tento email nebo kontaktujte projektového manažera.',
       showConfirmButton: true,
       ccEmails: [],
+      internalEmails: [],
+      internalTaskIds: [],
     };
     addNotificationRule(newRule);
   }
