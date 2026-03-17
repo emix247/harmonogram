@@ -466,29 +466,53 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                   <div style={{ position: 'absolute', left: todayX, top: HEADER_HEIGHT, bottom: 0, width: 2, backgroundColor: '#ef4444', zIndex: 5, pointerEvents: 'none' }} />
                 )}
 
+                {/* Week zoom — alternating week band backgrounds */}
+                {zoom === 'week' && weeks.map((w, wi) => {
+                  const x = Math.round((w.start.getTime() - baseStart.getTime()) / 86400000) * DAY_WIDTH;
+                  if (wi % 2 === 0) return null;
+                  return (
+                    <div
+                      key={`wb-${wi}`}
+                      style={{
+                        position: 'absolute',
+                        left: Math.max(0, x),
+                        top: HEADER_HEIGHT,
+                        bottom: 0,
+                        width: 7 * DAY_WIDTH,
+                        backgroundColor: 'rgba(148,163,184,0.07)',
+                        pointerEvents: 'none',
+                        zIndex: 0,
+                      }}
+                    />
+                  );
+                })}
+
                 {/* Weekend shading (week zoom) */}
                 {zoom === 'week' && days.map((day, i) =>
                   (day.getDay() === 0 || day.getDay() === 6) && (
-                    <div key={`we-${i}`} style={{ position: 'absolute', left: i * DAY_WIDTH, top: HEADER_HEIGHT, bottom: 0, width: DAY_WIDTH, backgroundColor: '#fef9c360', pointerEvents: 'none', zIndex: 1 }} />
+                    <div key={`we-${i}`} style={{ position: 'absolute', left: i * DAY_WIDTH, top: HEADER_HEIGHT, bottom: 0, width: DAY_WIDTH, backgroundColor: '#fef3c740', pointerEvents: 'none', zIndex: 1 }} />
                   )
                 )}
 
-                {/* Vertical grid lines — week: every day, Monday darker */}
-                {zoom === 'week' && days.map((day, i) => (
-                  <div
-                    key={`vg-${i}`}
-                    style={{
-                      position: 'absolute',
-                      left: i * DAY_WIDTH,
-                      top: HEADER_HEIGHT,
-                      bottom: 0,
-                      width: 1,
-                      backgroundColor: day.getDay() === 1 ? '#c7cdd6' : '#e5e7eb',
-                      pointerEvents: 'none',
-                      zIndex: 2,
-                    }}
-                  />
-                ))}
+                {/* Vertical grid lines — week zoom */}
+                {zoom === 'week' && days.map((day, i) => {
+                  const isMon = day.getDay() === 1;
+                  return (
+                    <div
+                      key={`vg-${i}`}
+                      style={{
+                        position: 'absolute',
+                        left: i * DAY_WIDTH,
+                        top: HEADER_HEIGHT,
+                        bottom: 0,
+                        width: isMon ? 2 : 1,
+                        backgroundColor: isMon ? '#64748b' : '#cbd5e1',
+                        pointerEvents: 'none',
+                        zIndex: 2,
+                      }}
+                    />
+                  );
+                })}
 
                 {/* Vertical grid lines — month: every week */}
                 {zoom === 'month' && weeks.map((w, i) => {
