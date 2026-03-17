@@ -391,7 +391,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                     key={`task-label-${task.id}`}
                     style={{
                       height: ROW_HEIGHT,
-                      borderBottom: '1px solid #f1f5f9',
+                      borderBottom: '1px solid #e2e8f0',
                       backgroundColor: hoveredTaskId === task.id ? '#eff6ff' : undefined,
                       transition: 'background-color 0.1s',
                       cursor: lockedProjectId ? 'default' : 'pointer',
@@ -466,12 +466,74 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                   <div style={{ position: 'absolute', left: todayX, top: HEADER_HEIGHT, bottom: 0, width: 2, backgroundColor: '#ef4444', zIndex: 5, pointerEvents: 'none' }} />
                 )}
 
-                {/* Weekend shading */}
+                {/* Weekend shading (week zoom) */}
                 {zoom === 'week' && days.map((day, i) =>
                   (day.getDay() === 0 || day.getDay() === 6) && (
-                    <div key={i} style={{ position: 'absolute', left: i * DAY_WIDTH, top: HEADER_HEIGHT, bottom: 0, width: DAY_WIDTH, backgroundColor: '#fef9c320', pointerEvents: 'none', zIndex: 1 }} />
+                    <div key={`we-${i}`} style={{ position: 'absolute', left: i * DAY_WIDTH, top: HEADER_HEIGHT, bottom: 0, width: DAY_WIDTH, backgroundColor: '#fef9c360', pointerEvents: 'none', zIndex: 1 }} />
                   )
                 )}
+
+                {/* Vertical grid lines — week: every day, Monday darker */}
+                {zoom === 'week' && days.map((day, i) => (
+                  <div
+                    key={`vg-${i}`}
+                    style={{
+                      position: 'absolute',
+                      left: i * DAY_WIDTH,
+                      top: HEADER_HEIGHT,
+                      bottom: 0,
+                      width: 1,
+                      backgroundColor: day.getDay() === 1 ? '#c7cdd6' : '#e5e7eb',
+                      pointerEvents: 'none',
+                      zIndex: 2,
+                    }}
+                  />
+                ))}
+
+                {/* Vertical grid lines — month: every week */}
+                {zoom === 'month' && weeks.map((w, i) => {
+                  const x = Math.round((w.start.getTime() - baseStart.getTime()) / 86400000) * DAY_WIDTH;
+                  if (x < 0) return null;
+                  return (
+                    <div
+                      key={`vg-w-${i}`}
+                      style={{
+                        position: 'absolute',
+                        left: x,
+                        top: HEADER_HEIGHT,
+                        bottom: 0,
+                        width: 1,
+                        backgroundColor: '#d1d5db',
+                        pointerEvents: 'none',
+                        zIndex: 2,
+                      }}
+                    />
+                  );
+                })}
+
+                {/* Vertical grid lines — quarter: every month */}
+                {zoom === 'quarter' && (() => {
+                  let x = 0;
+                  return months.map((m, i) => {
+                    const lineX = x;
+                    x += m.days * DAY_WIDTH;
+                    return (
+                      <div
+                        key={`vg-m-${i}`}
+                        style={{
+                          position: 'absolute',
+                          left: lineX,
+                          top: HEADER_HEIGHT,
+                          bottom: 0,
+                          width: i === 0 ? 0 : 1,
+                          backgroundColor: '#b0b7c3',
+                          pointerEvents: 'none',
+                          zIndex: 2,
+                        }}
+                      />
+                    );
+                  });
+                })()}
 
                 {/* Gantt bars — same order as renderItems (phase headers + tasks) */}
                 {(() => {
@@ -506,7 +568,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                     bars.push(
                       <div
                         key={`row-${task.id}`}
-                        style={{ position: 'absolute', top: y, left: 0, right: 0, height: ROW_HEIGHT, borderBottom: '1px solid #f1f5f9', backgroundColor: isHovered ? '#eff6ff40' : undefined, transition: 'background-color 0.1s' }}
+                        style={{ position: 'absolute', top: y, left: 0, right: 0, height: ROW_HEIGHT, borderBottom: '1px solid #e2e8f0', backgroundColor: isHovered ? '#eff6ff60' : undefined, transition: 'background-color 0.1s' }}
                         onMouseEnter={() => setHoveredTaskId(task.id)}
                         onMouseLeave={() => setHoveredTaskId(null)}
                       />,

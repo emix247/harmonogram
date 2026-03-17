@@ -4,8 +4,8 @@ import {
   getEffectiveProgress, localToday, getDaysBetween, countWorkdays,
 } from '../utils/helpers';
 import {
-  AlertTriangle, CheckCircle, Clock, TrendingUp,
-  Wrench, Flag, Activity, Building2
+  AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown,
+  Wrench, Flag, Activity, Building2, Minus,
 } from 'lucide-react';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -33,7 +33,11 @@ function calcExpectedProgress(plannedStart: string, plannedEnd: string, today: s
   return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
 }
 
-type ScheduleSignal = { label: string; delta: number; variant: 'ahead' | 'ontrack' | 'behind' };
+type ScheduleSignal = {
+  delta: number;
+  deltaDays: number;
+  variant: 'ahead' | 'ontrack' | 'behind';
+};
 
 function calcScheduleSignal(
   project: { plannedStart: string; plannedEnd: string; status: string },
@@ -41,24 +45,23 @@ function calcScheduleSignal(
   today: string
 ): ScheduleSignal | null {
   if (project.status === 'completed' || today < project.plannedStart) return null;
-  const actual   = calcActualProgress(projectTasks, today);
-  const expected = calcExpectedProgress(project.plannedStart, project.plannedEnd, today);
-  const delta    = actual - expected;
-  if (delta >= 5)  return { label: `Předstih +${delta} %`, delta, variant: 'ahead' };
-  if (delta <= -5) return { label: `Zpoždění ${Math.abs(delta)} %`, delta, variant: 'behind' };
-  return { label: 'Na plán', delta, variant: 'ontrack' };
+  const actual    = calcActualProgress(projectTasks, today);
+  const expected  = calcExpectedProgress(project.plannedStart, project.plannedEnd, today);
+  const delta     = actual - expected;
+  const totalDays = getDaysBetween(project.plannedStart, project.plannedEnd);
+  const deltaDays = Math.max(1, Math.round(Math.abs(delta) * totalDays / 100));
+  if (delta >= 5)  return { delta, deltaDays, variant: 'ahead' };
+  if (delta <= -5) return { delta, deltaDays, variant: 'behind' };
+  return { delta, deltaDays: 0, variant: 'ontrack' };
 }
 
-const signalStyle: Record<ScheduleSignal['variant'], string> = {
-  ahead:   'bg-green-100 text-green-700 border-green-200',
-  ontrack: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  behind:  'bg-red-100 text-red-700 border-red-200',
-};
-
-const signalDot: Record<ScheduleSignal['variant'], string> = {
-  ahead:   '🟢',
-  ontrack: '🟡',
-  behind:  '🔴',
+const signalCfg: Record<
+  ScheduleSignal['variant'],
+  { bg: string; text: string; border: string; Icon: React.ElementType; label: string }
+> = {
+  ahead:   { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-300', Icon: TrendingUp,   label: 'Předstih' },
+  ontrack: { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-300', Icon: Minus,        label: 'Na plán'  },
+  behind:  { bg: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-300',   Icon: TrendingDown, label: 'Zpoždění' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,41 +139,55 @@ export default function Dashboard() {
               const progress  = calcActualProgress(projectTasks, today);
               const expected  = calcExpectedProgress(project.plannedStart, project.plannedEnd, today);
               const signal    = calcScheduleSignal(project, projectTasks, today);
+              const cfg = signal ? signalCfg[signal.variant] : null;
+              const SignalIcon = cfg?.Icon;
               return (
                 <div key={project.id} className="border border-gray-100 rounded-lg p-4">
                   {/* Header row */}
                   <div className="flex justify-between items-start mb-2">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <h4 className="font-medium text-gray-800">{project.name}</h4>
                       <p className="text-sm text-gray-500">{project.address}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {signal && (
-                        <span
-                          title={`Aktuální postup ${progress} % vs. očekávaný ${expected} %`}
-                          className={`text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap ${signalStyle[signal.variant]}`}
-                        >
-                          {signalDot[signal.variant]} {signal.label}
-                        </span>
+                    <span className={`text-xs px-2 py-1 rounded-full ml-2 shrink-0 ${statusColor(project.status)}`}>
+                      {statusLabel(project.status)}
+                    </span>
+                  </div>
+
+                  {/* Schedule signal badge — full-width, prominent */}
+                  {signal && cfg && SignalIcon && (
+                    <div
+                      title={`Aktuální postup ${progress} % vs. očekávaný ${expected} %`}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border mb-3 ${cfg.bg} ${cfg.border}`}
+                    >
+                      <SignalIcon size={16} className={cfg.text} />
+                      <span className={`font-bold text-sm ${cfg.text}`}>{cfg.label}</span>
+                      {signal.variant !== 'ontrack' && (
+                        <>
+                          <span className={`font-semibold text-sm ${cfg.text}`}>
+                            {signal.variant === 'ahead' ? '+' : '−'}{signal.deltaDays} dní
+                          </span>
+                          <span className={`text-xs opacity-70 ${cfg.text}`}>
+                            ({signal.variant === 'ahead' ? '+' : '−'}{Math.abs(signal.delta)} %)
+                          </span>
+                        </>
                       )}
-                      <span className={`text-xs px-2 py-1 rounded-full ${statusColor(project.status)}`}>
-                        {statusLabel(project.status)}
+                      <span className={`ml-auto text-xs opacity-60 ${cfg.text}`}>
+                        postup {progress} % · plán {expected} %
                       </span>
                     </div>
-                  </div>
+                  )}
 
                   {/* Progress bar with expected marker */}
                   <div className="flex items-center gap-3">
                     <div className="flex-1 relative bg-gray-100 rounded-full h-2.5">
-                      {/* actual progress */}
                       <div
                         className="h-2.5 rounded-full bg-blue-500 transition-all"
                         style={{ width: `${progress}%` }}
                       />
-                      {/* expected marker (thin vertical line) */}
                       {expected > 0 && expected <= 100 && (
                         <div
-                          className="absolute top-0 bottom-0 w-0.5 bg-gray-400 rounded"
+                          className="absolute top-0 bottom-0 w-0.5 bg-gray-500 rounded"
                           style={{ left: `${expected}%` }}
                           title={`Očekávaný postup: ${expected} %`}
                         />
