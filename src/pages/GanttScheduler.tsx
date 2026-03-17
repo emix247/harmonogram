@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
-import { formatDate, statusColor, statusLabel, generateId, nextWorkday, addWorkdays, countWorkdays } from '../utils/helpers';
+import { formatDate, statusColor, statusLabel, generateId, nextWorkday, addWorkdays, countWorkdays, getEffectiveProgress } from '../utils/helpers';
 import { ChevronLeft, ChevronRight, Plus, X, Trash2, Save, AlertTriangle, Search } from 'lucide-react';
 import type { Task, TaskStatus, Priority } from '../types';
 import { useResizableColumns, ResizeHandle } from '../hooks/useResizableColumns';
@@ -513,7 +513,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                       />,
                       <div
                         key={`bar-${task.id}`}
-                        title={`${task.name}\n${formatDate(task.plannedStart)} – ${formatDate(task.plannedEnd)}\nPostup: ${task.progressPercent}%\nKliknutím editujte`}
+                        title={`${task.name}\n${formatDate(task.plannedStart)} – ${formatDate(task.plannedEnd)}\nPostup: ${getEffectiveProgress(task, todayStr)}%\nKliknutím editujte`}
                         style={{
                           position: 'absolute',
                           top: y + 6, left: x, width: w, height: ROW_HEIGHT - 12,
@@ -530,10 +530,10 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                         onMouseLeave={() => setHoveredTaskId(null)}
                         onClick={() => openEdit(task)}
                       >
-                        <div style={{ position: 'absolute', top: 0, left: 0, width: `${task.progressPercent}%`, height: '100%', backgroundColor: 'rgba(255,255,255,0.25)' }} />
+                        <div style={{ position: 'absolute', top: 0, left: 0, width: `${getEffectiveProgress(task, todayStr)}%`, height: '100%', backgroundColor: 'rgba(255,255,255,0.25)' }} />
                         {w > 60 && (
                           <span className="absolute inset-0 flex items-center px-2 text-white text-xs font-medium truncate">
-                            {task.progressPercent}%
+                            {getEffectiveProgress(task, todayStr)}%
                           </span>
                         )}
                       </div>
@@ -650,9 +650,9 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1.5 min-w-[70px]">
                         <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                          <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${task.progressPercent}%` }} />
+                          <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${getEffectiveProgress(task, todayStr)}%` }} />
                         </div>
-                        <span className="text-xs text-gray-500 w-7 text-right">{task.progressPercent}%</span>
+                        <span className="text-xs text-gray-500 w-7 text-right">{getEffectiveProgress(task, todayStr)}%</span>
                       </div>
                     </td>
                     <td className="px-4 py-2.5">
@@ -771,21 +771,52 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Postup</label>
-                  <span className="text-sm font-bold text-blue-600">{panelForm.progressPercent ?? 0}%</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPanelForm(f => ({ ...f, autoProgress: f.autoProgress === false ? true : false }))}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-colors ${
+                        panelForm.autoProgress !== false
+                          ? 'bg-blue-50 text-blue-600 border-blue-300'
+                          : 'bg-gray-100 text-gray-500 border-gray-300'
+                      }`}
+                    >
+                      {panelForm.autoProgress !== false ? '⚡ auto' : 'ručně'}
+                    </button>
+                    <span className="text-sm font-bold text-blue-600">
+                      {panelForm.autoProgress !== false
+                        ? `${getEffectiveProgress({ ...panelForm, autoProgress: panelForm.autoProgress ?? true } as Parameters<typeof getEffectiveProgress>[0], todayStr)}%`
+                        : `${panelForm.progressPercent ?? 0}%`}
+                    </span>
+                  </div>
                 </div>
-                <input
-                  type="range"
-                  min={0} max={100} step={5}
-                  value={panelForm.progressPercent ?? 0}
-                  onChange={e => setPanelForm(f => ({ ...f, progressPercent: Number(e.target.value) }))}
-                  className="w-full accent-blue-600"
-                />
-                <div className="mt-1.5 h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full transition-all"
-                    style={{ width: `${panelForm.progressPercent ?? 0}%` }}
-                  />
-                </div>
+                {panelForm.autoProgress !== false ? (
+                  <div>
+                    <div className="mt-1.5 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 rounded-full transition-all"
+                        style={{ width: `${getEffectiveProgress({ ...panelForm, autoProgress: true } as Parameters<typeof getEffectiveProgress>[0], todayStr)}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">Počítá se automaticky z termínů úkolu</p>
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      type="range"
+                      min={0} max={100} step={5}
+                      value={panelForm.progressPercent ?? 0}
+                      onChange={e => setPanelForm(f => ({ ...f, progressPercent: Number(e.target.value) }))}
+                      className="w-full accent-blue-600"
+                    />
+                    <div className="mt-1.5 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 rounded-full transition-all"
+                        style={{ width: `${panelForm.progressPercent ?? 0}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Dates */}
