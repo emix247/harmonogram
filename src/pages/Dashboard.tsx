@@ -1,14 +1,72 @@
 import { useAppStore } from '../store/appStore';
-import { formatDate, formatCurrency, statusColor, statusLabel } from '../utils/helpers';
+import {
+  formatDate, formatCurrency, statusColor, statusLabel,
+  getEffectiveProgress, localToday, getDaysBetween, countWorkdays,
+} from '../utils/helpers';
 import {
   AlertTriangle, CheckCircle, Clock, TrendingUp,
   Wrench, Flag, Activity, Building2
 } from 'lucide-react';
 
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+/** Weighted-average effective progress across all tasks of a project. */
+function calcActualProgress(
+  projectTasks: ReturnType<typeof useAppStore.getState>['tasks'],
+  today: string
+): number {
+  if (projectTasks.length === 0) return 0;
+  let totalW = 0, sum = 0;
+  for (const t of projectTasks) {
+    const w = countWorkdays(t.plannedStart, t.plannedEnd);
+    sum += getEffectiveProgress(t, today) * w;
+    totalW += w;
+  }
+  return totalW > 0 ? Math.round(sum / totalW) : 0;
+}
+
+/** How far along we "should" be today based purely on calendar time. */
+function calcExpectedProgress(plannedStart: string, plannedEnd: string, today: string): number {
+  const total = getDaysBetween(plannedStart, plannedEnd);
+  if (total <= 0) return 0;
+  const elapsed = getDaysBetween(plannedStart, today);
+  return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
+}
+
+type ScheduleSignal = { label: string; delta: number; variant: 'ahead' | 'ontrack' | 'behind' };
+
+function calcScheduleSignal(
+  project: { plannedStart: string; plannedEnd: string; status: string },
+  projectTasks: ReturnType<typeof useAppStore.getState>['tasks'],
+  today: string
+): ScheduleSignal | null {
+  if (project.status === 'completed' || today < project.plannedStart) return null;
+  const actual   = calcActualProgress(projectTasks, today);
+  const expected = calcExpectedProgress(project.plannedStart, project.plannedEnd, today);
+  const delta    = actual - expected;
+  if (delta >= 5)  return { label: `Předstih +${delta} %`, delta, variant: 'ahead' };
+  if (delta <= -5) return { label: `Zpoždění ${Math.abs(delta)} %`, delta, variant: 'behind' };
+  return { label: 'Na plán', delta, variant: 'ontrack' };
+}
+
+const signalStyle: Record<ScheduleSignal['variant'], string> = {
+  ahead:   'bg-green-100 text-green-700 border-green-200',
+  ontrack: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  behind:  'bg-red-100 text-red-700 border-red-200',
+};
+
+const signalDot: Record<ScheduleSignal['variant'], string> = {
+  ahead:   '🟢',
+  ontrack: '🟡',
+  behind:  '🔴',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function Dashboard() {
   const { projects, tasks, milestones, conflicts, risks, crafts, setCurrentPage } = useAppStore();
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
 
   const activeProjects = projects.filter(p => p.status === 'active');
   const todayTasks = tasks.filter(t =>
@@ -75,28 +133,53 @@ export default function Dashboard() {
           <div className="space-y-4">
             {activeProjects.map((project) => {
               const projectTasks = tasks.filter(t => t.projectId === project.id);
-              const done = projectTasks.filter(t => t.status === 'completed').length;
-              const progress = projectTasks.length > 0 ? Math.round((done / projectTasks.length) * 100) : 0;
+              const progress  = calcActualProgress(projectTasks, today);
+              const expected  = calcExpectedProgress(project.plannedStart, project.plannedEnd, today);
+              const signal    = calcScheduleSignal(project, projectTasks, today);
               return (
                 <div key={project.id} className="border border-gray-100 rounded-lg p-4">
+                  {/* Header row */}
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <h4 className="font-medium text-gray-800">{project.name}</h4>
                       <p className="text-sm text-gray-500">{project.address}</p>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${statusColor(project.status)}`}>
-                      {statusLabel(project.status)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {signal && (
+                        <span
+                          title={`Aktuální postup ${progress} % vs. očekávaný ${expected} %`}
+                          className={`text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap ${signalStyle[signal.variant]}`}
+                        >
+                          {signalDot[signal.variant]} {signal.label}
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-1 rounded-full ${statusColor(project.status)}`}>
+                        {statusLabel(project.status)}
+                      </span>
+                    </div>
                   </div>
+
+                  {/* Progress bar with expected marker */}
                   <div className="flex items-center gap-3">
-                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                    <div className="flex-1 relative bg-gray-100 rounded-full h-2.5">
+                      {/* actual progress */}
                       <div
-                        className="h-2 rounded-full bg-blue-500"
+                        className="h-2.5 rounded-full bg-blue-500 transition-all"
                         style={{ width: `${progress}%` }}
                       />
+                      {/* expected marker (thin vertical line) */}
+                      {expected > 0 && expected <= 100 && (
+                        <div
+                          className="absolute top-0 bottom-0 w-0.5 bg-gray-400 rounded"
+                          style={{ left: `${expected}%` }}
+                          title={`Očekávaný postup: ${expected} %`}
+                        />
+                      )}
                     </div>
-                    <span className="text-sm font-medium text-gray-700">{progress}%</span>
+                    <span className="text-sm font-medium text-gray-700 w-10 text-right">{progress}%</span>
                   </div>
+
+                  {/* Footer row */}
                   <div className="flex justify-between mt-2 text-xs text-gray-400">
                     <span>Plán: {formatDate(project.plannedStart)} – {formatDate(project.plannedEnd)}</span>
                     <span>{formatCurrency(project.budget)}</span>
