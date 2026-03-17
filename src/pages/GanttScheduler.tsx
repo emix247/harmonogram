@@ -78,7 +78,7 @@ interface GanttSchedulerProps {
 
 export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSchedulerProps = {}) {
   const {
-    tasks, projects, phases, currentProjectId, milestones, crafts, objects, users,
+    tasks, projects, phases, currentProjectId, milestones, crafts, objects, users, contractors,
     addTask, updateTask, deleteTask, notificationRecords,
   } = useAppStore();
 
@@ -91,7 +91,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
   // ─── Resizable columns for the task list table ───
-  // cols: #(0) | name(1) | phase(2) | object(3) | craft(4) | responsible(5) | start(6) | end(7) | duration(8) | progress(9) | status(10)
+  // cols: #(0) | name(1) | phase(2) | object(3) | contractor(4) | responsible(5) | start(6) | end(7) | duration(8) | progress(9) | status(10)
   const { widths: tblW, startResize: tblResize } = useResizableColumns([40, 210, 120, 110, 110, 120, 92, 92, 72, 120, 95], 'gantt');
 
   // ─── Side panel state ───
@@ -575,7 +575,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
           <table className="text-sm" style={{ tableLayout: 'fixed', width: tblW.reduce((s, w) => s + w, 0) }}>
             <thead className="border-b border-gray-100">
               <tr className="text-xs text-gray-500 bg-gray-50">
-                {(['#', 'Název úkolu', 'Fáze', 'Objekt', 'Řemeslo', 'Odpovědná osoba', 'Zahájení', 'Dokončení', 'Trvání', 'Postup', 'Stav'] as const).map((label, i) => (
+                {(['#', 'Název úkolu', 'Fáze', 'Objekt', 'Zhotovitel', 'Odpovědná osoba', 'Zahájení', 'Dokončení', 'Trvání', 'Postup', 'Stav'] as const).map((label, i) => (
                   <th
                     key={label}
                     style={{ width: tblW[i], position: 'relative' }}
@@ -591,7 +591,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
               {orderedTasks.map((task, idx) => {
                 const phase = phases.find(ph => ph.id === task.phaseId);
                 const obj = objects.find(o => o.id === task.objectId);
-                const craft = crafts.find(c => c.id === task.craftId);
+                const contractor = contractors.find(c => c.id === task.contractorId);
                 const responsiblePerson = users.find(u => u.id === task.responsiblePersonId);
                 const durationDays = Math.round(
                   (new Date(task.plannedEnd).getTime() - new Date(task.plannedStart).getTime()) / 86400000
@@ -623,13 +623,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                       ) : <span className="text-gray-300 text-xs">–</span>}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{obj?.name || <span className="text-gray-300">–</span>}</td>
-                    <td className="px-4 py-2.5">
-                      {craft ? (
-                        <span className="inline-flex px-1.5 py-0.5 rounded text-xs text-white" style={{ backgroundColor: craft.color }}>
-                          {craft.name}
-                        </span>
-                      ) : <span className="text-gray-300 text-xs">–</span>}
-                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-700 truncate">{contractor ? contractor.name : <span className="text-gray-300">–</span>}</td>
                     <td className="px-4 py-2.5">
                       {responsiblePerson ? (
                         <div className="flex items-center gap-1.5">
