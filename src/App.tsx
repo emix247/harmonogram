@@ -350,6 +350,50 @@ function ConfirmationSyncer() {
   return null;
 }
 
+// ── Live conflict detection ───────────────────────────────────────────────────
+/**
+ * Watches tasks + crafts and recomputes craft-overlap conflicts on every change.
+ * Replaces the old static sampleConflicts array.
+ */
+function ConflictDetector() {
+  const { tasks, crafts, setConflicts } = useAppStore();
+
+  useEffect(() => {
+    const detected: ReturnType<typeof useAppStore.getState>['conflicts'] = [];
+
+    for (const craft of crafts) {
+      const craftTasks = tasks.filter(
+        t => t.craftId === craft.id && t.status !== 'completed'
+      );
+      for (let i = 0; i < craftTasks.length; i++) {
+        for (let j = i + 1; j < craftTasks.length; j++) {
+          const a = craftTasks[i];
+          const b = craftTasks[j];
+          if (a.projectId === b.projectId) continue; // same project is fine
+          const overlapStart = a.plannedStart > b.plannedStart ? a.plannedStart : b.plannedStart;
+          const overlapEnd   = a.plannedEnd   < b.plannedEnd   ? a.plannedEnd   : b.plannedEnd;
+          if (overlapStart <= overlapEnd) {
+            detected.push({
+              id: `conf-${craft.id}-${a.id}-${b.id}`,
+              type: 'overlap',
+              craftId: craft.id,
+              taskIds: [a.id, b.id],
+              description: `${craft.name} je plánováno na více projektech současně (${a.name} × ${b.name})`,
+              severity: 'warning',
+              date: overlapStart,
+            });
+          }
+        }
+      }
+    }
+
+    setConflicts(detected);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, crafts]);
+
+  return null;
+}
+
 // ── Fields synced to Neon (excludes transient / huge data) ──────────────────
 function extractSyncState(s: ReturnType<typeof useAppStore.getState>) {
   return {
@@ -585,6 +629,7 @@ export default function App() {
     <div className="flex h-screen bg-gray-50">
       {/* Background workers — render nothing visible */}
       <CloudSync />
+      <ConflictDetector />
       <NotificationProcessor />
       <ConfirmationSyncer />
       <DeadlineReminderProcessor />

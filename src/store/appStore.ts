@@ -791,17 +791,7 @@ const sampleMobileReports: MobileReport[] = [
   },
 ];
 
-const sampleConflicts: ConflictAlert[] = [
-  {
-    id: 'conf1',
-    type: 'overlap',
-    craftId: 'craft2',
-    taskIds: ['t2', 't12'],
-    description: 'Zednická četa Procházka je plánována na dvou stavbách současně (Dům č. 1 a Dům č. 2)',
-    severity: 'warning',
-    date: addDaysToDate(today, 0),
-  },
-];
+const sampleConflicts: ConflictAlert[] = [];
 
 // =================== STORE ===================
 
@@ -833,6 +823,7 @@ interface AppState {
   // Actions
   setCurrentProjectId: (id: string | null) => void;
   setCurrentPage: (page: string) => void;
+  setConflicts: (conflicts: ConflictAlert[]) => void;
 
   // Task Actions
   addTask: (task: Task) => void;
@@ -946,6 +937,7 @@ export const useAppStore = create<AppState>()(
 
       setCurrentProjectId: (id) => set({ currentProjectId: id }),
       setCurrentPage: (page) => set({ currentPage: page }),
+      setConflicts: (conflicts) => set({ conflicts }),
 
       addTask: (task) =>
         set((state) => {
