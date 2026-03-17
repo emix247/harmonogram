@@ -514,26 +514,77 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                   );
                 })}
 
-                {/* Vertical grid lines — month: every week */}
-                {zoom === 'month' && weeks.map((w, i) => {
+                {/* Month zoom — alternating week band backgrounds */}
+                {zoom === 'month' && weeks.map((w, wi) => {
                   const x = Math.round((w.start.getTime() - baseStart.getTime()) / 86400000) * DAY_WIDTH;
-                  if (x < 0) return null;
+                  if (wi % 2 === 0) return null;
                   return (
                     <div
-                      key={`vg-w-${i}`}
+                      key={`mb-${wi}`}
                       style={{
                         position: 'absolute',
-                        left: x,
+                        left: Math.max(0, x),
                         top: HEADER_HEIGHT,
                         bottom: 0,
-                        width: 1,
-                        backgroundColor: '#d1d5db',
+                        width: 7 * DAY_WIDTH,
+                        backgroundColor: 'rgba(148,163,184,0.07)',
                         pointerEvents: 'none',
-                        zIndex: 2,
+                        zIndex: 0,
                       }}
                     />
                   );
                 })}
+
+                {/* Vertical grid lines — month: week lines + thicker month boundaries */}
+                {zoom === 'month' && (() => {
+                  const lines: React.ReactNode[] = [];
+
+                  // Week lines
+                  weeks.forEach((w, i) => {
+                    const x = Math.round((w.start.getTime() - baseStart.getTime()) / 86400000) * DAY_WIDTH;
+                    if (x < 0) return;
+                    lines.push(
+                      <div
+                        key={`vg-w-${i}`}
+                        style={{
+                          position: 'absolute',
+                          left: x,
+                          top: HEADER_HEIGHT,
+                          bottom: 0,
+                          width: 1,
+                          backgroundColor: '#b0b7c3',
+                          pointerEvents: 'none',
+                          zIndex: 2,
+                        }}
+                      />
+                    );
+                  });
+
+                  // Month boundary lines (thicker, darker — on top of week lines)
+                  let mx = 0;
+                  months.forEach((m, i) => {
+                    if (i > 0) {
+                      lines.push(
+                        <div
+                          key={`vg-m-${i}`}
+                          style={{
+                            position: 'absolute',
+                            left: mx,
+                            top: HEADER_HEIGHT,
+                            bottom: 0,
+                            width: 2,
+                            backgroundColor: '#64748b',
+                            pointerEvents: 'none',
+                            zIndex: 3,
+                          }}
+                        />
+                      );
+                    }
+                    mx += m.days * DAY_WIDTH;
+                  });
+
+                  return lines;
+                })()}
 
                 {/* Vertical grid lines — quarter: every month */}
                 {zoom === 'quarter' && (() => {
