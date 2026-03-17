@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
-import { formatDate, statusColor, statusLabel, generateId, nextWorkday, addWorkdays, countWorkdays, getEffectiveProgress } from '../utils/helpers';
+import { formatDate, statusColor, statusLabel, generateId, nextWorkday, addWorkdays, countWorkdays, getEffectiveProgress, localToday } from '../utils/helpers';
 import { ChevronLeft, ChevronRight, Plus, X, Trash2, Save, AlertTriangle, Search } from 'lucide-react';
 import type { Task, TaskStatus, Priority } from '../types';
 import { useResizableColumns, ResizeHandle } from '../hooks/useResizableColumns';
@@ -99,9 +99,8 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
   const [panelForm, setPanelForm] = useState<Omit<Task, 'id'> & { id?: string }>({} as Task);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = localToday();
+  const today = new Date(todayStr);
 
   const filteredTasks = tasks.filter(t => {
     if (filterProject && t.projectId !== filterProject) return false;
@@ -598,8 +597,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                   (new Date(task.plannedEnd).getTime() - new Date(task.plannedStart).getTime()) / 86400000
                 ) + 1;
                 const isHovered = hoveredTaskId === task.id;
-                const today2 = new Date().toISOString().split('T')[0];
-                const isOverdue = task.plannedEnd < today2 && task.status !== 'completed';
+                const isOverdue = task.plannedEnd < todayStr && task.status !== 'completed';
 
                 return (
                   <tr

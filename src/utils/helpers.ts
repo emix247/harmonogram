@@ -100,6 +100,14 @@ export const addWorkdays = (dateStr: string, days: number): string => {
   return d.toISOString().split('T')[0];
 };
 
+// Returns today's date as YYYY-MM-DD in LOCAL timezone (not UTC).
+// Use this everywhere instead of new Date().toISOString().split('T')[0]
+// which gives UTC date and can return yesterday in UTC+1/+2 timezones.
+export const localToday = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 // Count working days (Mon–Fri) between two dates, inclusive on both ends.
 export const countWorkdays = (startStr: string, endStr: string): number => {
   if (!startStr || !endStr) return 1;

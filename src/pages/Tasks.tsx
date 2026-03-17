@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
-import { formatDate, statusColor, statusLabel, priorityColor, generateId, nextWorkday, addWorkdays, countWorkdays, getEffectiveProgress } from '../utils/helpers';
+import { formatDate, statusColor, statusLabel, priorityColor, generateId, nextWorkday, addWorkdays, countWorkdays, getEffectiveProgress, localToday } from '../utils/helpers';
 import { Plus, Trash2, CheckSquare, Filter, Link2, X, ArrowRight, AlertCircle, Save, AlertTriangle, Clock, CheckCircle, TrendingUp, Search, GripVertical, CalendarDays } from 'lucide-react';
 import type { Task, Priority, TaskStatus, Dependency, DependencyType } from '../types';
 import { useResizableColumns, ResizeHandle } from '../hooks/useResizableColumns';
@@ -57,7 +57,7 @@ export default function Tasks() {
   const [newPredType, setNewPredType] = useState<DependencyType>('FS');
   const [newPredLag, setNewPredLag] = useState(0);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
 
   const emptyTask = useCallback((): Omit<Task, 'id'> => ({
     name: '',
