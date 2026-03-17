@@ -398,7 +398,7 @@ const POLL_INTERVAL_MS = 5000;
  * Debounce-saves every local change back to Neon.
  * Polls every 5 s for external changes — auto-reloads if another user saved.
  */
-function CloudSync() {
+function CloudSync({ onReady }: { onReady?: () => void }) {
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const serverTimestampRef = useRef<string | null>(null);
@@ -425,11 +425,13 @@ function CloudSync() {
           serverTimestampRef.current = data.updatedAt ?? null;
           loadedRef.current = true;
           setSyncStatus('idle');
+          onReady?.();
         } else {
           // Neon is empty → push current localStorage state to Neon immediately
           serverTimestampRef.current = null;
           loadedRef.current = true;
           setSyncStatus('saving');
+          onReady?.();
           const localState = extractSyncState(useAppStore.getState());
           fetch(`${API_BASE}/api/state`, {
             method: 'POST',
@@ -451,6 +453,7 @@ function CloudSync() {
       .catch(() => {
         loadedRef.current = true;
         setSyncStatus('error');
+        onReady?.();
         setTimeout(() => setSyncStatus('idle'), 4000);
       });
 
@@ -543,6 +546,9 @@ export default function App() {
   const { currentPage } = useAppStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loggedIn, setLoggedIn] = useState(() => !!sessionStorage.getItem('harmonogram-auth'));
+  // cloudReady: true once initial Neon fetch completes (or errors out)
+  // If already logged in we don't need to wait → start as true
+  const [cloudReady, setCloudReady] = useState(() => !!sessionStorage.getItem('harmonogram-auth'));
 
   // ─── Detect share link: ?share=TOKEN ───
   const shareToken = new URLSearchParams(window.location.search).get('share');
@@ -550,11 +556,30 @@ export default function App() {
     return <PublicView token={shareToken} />;
   }
 
-  if (!loggedIn) {
-    return <Login onLogin={() => setLoggedIn(true)} />;
-  }
-
   const PageComponent = pages[currentPage] || Dashboard;
+
+  // ─── Not logged in yet ───
+  if (!loggedIn) {
+    return (
+      <>
+        {/* CloudSync MUST run before login so Neon users are loaded into the store */}
+        <CloudSync onReady={() => setCloudReady(true)} />
+        {cloudReady ? (
+          <Login onLogin={() => setLoggedIn(true)} />
+        ) : (
+          // Brief loading screen while fetching users from Neon
+          <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+                <span className="text-white font-black text-xl">T</span>
+              </div>
+              <p className="text-gray-400 text-sm">Načítám data…</p>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
