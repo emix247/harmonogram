@@ -514,14 +514,39 @@ function CloudSync({ onReady }: { onReady?: () => void }) {
         fetch(`${API_BASE}/api/state`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: syncState }),
+          body: JSON.stringify({
+            state: syncState,
+            clientUpdatedAt: serverTimestampRef.current,   // stale-write guard
+          }),
         })
-          .then(r => r.json())
-          .then((res: { ok?: boolean; updatedAt?: string }) => {
-            if (res.updatedAt) serverTimestampRef.current = res.updatedAt;
-            savingRef.current = false;
-            setSyncStatus('saved');
-            setTimeout(() => setSyncStatus('idle'), 2000);
+          .then(r => {
+            if (r.status === 409) {
+              // Server has newer data — reload it instead of overwriting
+              return r.json().then((conflict: { serverUpdatedAt?: string }) => {
+                console.warn('[CloudSync] Conflict detected — reloading from server');
+                return fetch(`${API_BASE}/api/state`)
+                  .then(r2 => r2.json())
+                  .then((fresh: { state: unknown; updatedAt: string | null }) => {
+                    if (fresh.state && typeof fresh.state === 'object') {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const stateObj = fresh.state as any;
+                      if (!stateObj.notificationRules) stateObj.notificationRules = defaultNotificationRules;
+                      if (!stateObj.projectNotificationConfigs) stateObj.projectNotificationConfigs = [];
+                      useAppStore.setState(stateObj);
+                      serverTimestampRef.current = fresh.updatedAt ?? conflict.serverUpdatedAt ?? null;
+                      setSyncStatus('refreshed');
+                      setTimeout(() => setSyncStatus('idle'), 3000);
+                    }
+                    savingRef.current = false;
+                  });
+              });
+            }
+            return r.json().then((res: { ok?: boolean; updatedAt?: string }) => {
+              if (res.updatedAt) serverTimestampRef.current = res.updatedAt;
+              savingRef.current = false;
+              setSyncStatus('saved');
+              setTimeout(() => setSyncStatus('idle'), 2000);
+            });
           })
           .catch(() => {
             savingRef.current = false;

@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+const API_BASE = (import.meta as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE ?? '';
 import { useAppStore } from '../store/appStore';
 import { generateId } from '../utils/helpers';
 import {
@@ -69,6 +71,50 @@ export default function Settings() {
     try { return JSON.parse(localStorage.getItem(SNAPSHOTS_KEY) ?? '[]'); } catch { return []; }
   });
   const [importStatus, setImportStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+
+  // ─── Neon cloud snapshots ───
+  interface NeonSnap { id: number; saved_at: string; }
+  const [neonSnaps, setNeonSnaps] = useState<NeonSnap[]>([]);
+  const [neonLoading, setNeonLoading] = useState(false);
+  const [neonRestoreStatus, setNeonRestoreStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+
+  useEffect(() => {
+    if (activeTab === 'backup') loadNeonSnapshots();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const loadNeonSnapshots = () => {
+    setNeonLoading(true);
+    fetch(`${API_BASE}/api/state?history=true`)
+      .then(r => r.json())
+      .then((data: { snapshots?: NeonSnap[] }) => {
+        setNeonSnaps(data.snapshots ?? []);
+        setNeonLoading(false);
+      })
+      .catch(() => setNeonLoading(false));
+  };
+
+  const restoreNeonSnapshot = (snap: NeonSnap) => {
+    const d = new Date(snap.saved_at);
+    const label = d.toLocaleDateString('cs-CZ') + ' ' + d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+    if (!confirm(`Obnovit zálohu z ${label}?\nAktuální data budou přepsána.`)) return;
+    fetch(`${API_BASE}/api/state?snapshot=${snap.id}`)
+      .then(r => r.json())
+      .then((data: { state?: Record<string, unknown> }) => {
+        if (data.state && typeof data.state === 'object') {
+          useAppStore.setState(data.state);
+          setNeonRestoreStatus('ok');
+          setTimeout(() => setNeonRestoreStatus('idle'), 3000);
+        } else {
+          setNeonRestoreStatus('error');
+          setTimeout(() => setNeonRestoreStatus('idle'), 3000);
+        }
+      })
+      .catch(() => {
+        setNeonRestoreStatus('error');
+        setTimeout(() => setNeonRestoreStatus('idle'), 3000);
+      });
+  };
 
   const handleExport = () => {
     const s = useAppStore.getState();
@@ -834,6 +880,73 @@ export default function Settings() {
                 <input type="file" accept=".json" className="hidden" onChange={handleImport} />
               </label>
             </div>
+          </div>
+
+          {/* Neon cloud snapshots */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                  <Database size={16} className="text-blue-500" /> Zálohy z cloudu
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">Automaticky ukládáno před každou synchronizací · Obnovitelné z libovolného zařízení</p>
+              </div>
+              <button
+                onClick={loadNeonSnapshots}
+                disabled={neonLoading}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                <RotateCcw size={13} className={neonLoading ? 'animate-spin' : ''} /> Obnovit seznam
+              </button>
+            </div>
+
+            {neonRestoreStatus === 'ok' && (
+              <div className="mx-5 mt-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700 flex items-center gap-2">
+                <Check size={13} /> Data úspěšně obnovena z cloudu!
+              </div>
+            )}
+            {neonRestoreStatus === 'error' && (
+              <div className="mx-5 mt-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 flex items-center gap-2">
+                <X size={13} /> Chyba při obnově ze zálohy.
+              </div>
+            )}
+
+            {neonLoading ? (
+              <div className="py-10 text-center text-gray-400 text-sm">Načítám zálohy…</div>
+            ) : neonSnaps.length === 0 ? (
+              <div className="py-10 text-center text-gray-400">
+                <Database size={32} className="mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Zatím žádné cloudové zálohy</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {neonSnaps.map((snap, i) => {
+                  const d = new Date(snap.saved_at);
+                  return (
+                    <div key={snap.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${i === 0 ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                        <Database size={14} className={i === 0 ? 'text-blue-600' : 'text-gray-400'} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800">
+                          {i === 0 && <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded mr-2">nejnovější</span>}
+                          Záloha #{snap.id}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {d.toLocaleDateString('cs-CZ')} {d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => restoreNeonSnapshot(snap)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 shrink-0"
+                      >
+                        <RotateCcw size={12} /> Obnovit
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Manual snapshots */}
