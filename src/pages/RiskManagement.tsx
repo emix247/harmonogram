@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { formatDate, generateId, statusColor, statusLabel } from '../utils/helpers';
-import { AlertTriangle, Plus, Shield, TrendingUp } from 'lucide-react';
+import { Plus, Shield, TrendingUp } from 'lucide-react';
 import type { Risk } from '../types';
 
 const probImpactColor = (level: string) => {
