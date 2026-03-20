@@ -22,7 +22,7 @@ const riskScoreColor = (score: number) => {
 };
 
 export default function RiskManagement() {
-  const { risks, projects, users, addRisk, updateRisk, deleteRisk, conflicts } = useAppStore();
+  const { risks, projects, users, addRisk, updateRisk, deleteRisk } = useAppStore();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Risk | null>(null);
   const [filterProject, setFilterProject] = useState('');
@@ -116,22 +116,6 @@ export default function RiskManagement() {
         </div>
       </div>
 
-      {/* Auto-detected conflicts */}
-      {conflicts.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <h3 className="font-semibold text-amber-800 mb-2 flex items-center gap-2">
-            <AlertTriangle size={16} /> Automaticky detekované konflikty ({conflicts.length})
-          </h3>
-          <div className="space-y-2">
-            {conflicts.map(c => (
-              <div key={c.id} className="bg-white border border-amber-100 rounded-lg p-3 text-sm">
-                <p className="font-medium text-amber-700">{c.description}</p>
-                <p className="text-amber-500 text-xs mt-1">Typ: {c.type === 'overlap' ? 'Překryv kapacity' : c.type === 'capacity' ? 'Překročení kapacity' : 'Nedostupnost'}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Risk list */}

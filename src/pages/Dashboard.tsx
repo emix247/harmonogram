@@ -5,7 +5,7 @@ import {
 } from '../utils/helpers';
 import {
   AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown,
-  Wrench, Flag, Activity, Building2, Minus,
+  Flag, Activity, Building2, Minus,
 } from 'lucide-react';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ const signalCfg: Record<
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const { projects, tasks, milestones, conflicts, risks, crafts, setCurrentPage } = useAppStore();
+  const { projects, tasks, milestones, risks, crafts, setCurrentPage } = useAppStore();
 
   const today = localToday();
 
@@ -90,7 +90,6 @@ export default function Dashboard() {
     { label: 'Dnešní úkoly', value: todayTasks.length, icon: Clock, color: 'indigo', sub: 'Právě probíhají', page: 'tasks' },
     { label: 'Kritické úkoly', value: criticalTasks.length, icon: Activity, color: 'orange', sub: 'Na kritické cestě', page: 'tasks' },
     { label: 'Zpožděné úkoly', value: delayedTasks.length, icon: AlertTriangle, color: 'red', sub: 'Vyžadují pozornost', page: 'tasks' },
-    { label: 'Kapacitní konflikty', value: conflicts.length, icon: Wrench, color: 'yellow', sub: 'Řemeslné konflikty', page: 'gantt' },
     { label: 'Otevřená rizika', value: openRisks.length, icon: AlertTriangle, color: 'red', sub: 'Vyžadují akci', page: 'risks' },
     { label: 'Celkový rozpočet', value: formatCurrency(totalBudget), icon: TrendingUp, color: 'green', sub: 'Všechny projekty', page: 'cashflow' },
     { label: 'Celkový postup', value: `${overallProgress}%`, icon: CheckCircle, color: 'teal', sub: `${completedTasks}/${totalTasks} úkolů`, page: 'reports' },
@@ -212,20 +211,6 @@ export default function Dashboard() {
 
         {/* Right column */}
         <div className="space-y-4">
-          {/* Conflicts */}
-          {conflicts.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <h3 className="font-semibold text-red-700 mb-3 flex items-center gap-2">
-                <Wrench size={16} /> Konflikty řemesel ({conflicts.length})
-              </h3>
-              {conflicts.map(c => (
-                <div key={c.id} className="bg-white rounded-lg p-3 border border-red-100 mb-2">
-                  <p className="text-sm text-red-700 font-medium">{c.description}</p>
-                  <p className="text-xs text-red-400 mt-1">{formatDate(c.date)}</p>
-                </div>
-              ))}
-            </div>
-          )}
 
           {/* Upcoming Milestones */}
           <div className="bg-white border border-gray-200 rounded-xl p-4">

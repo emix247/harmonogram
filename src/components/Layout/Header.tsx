@@ -47,7 +47,7 @@ interface Props {
 }
 
 export default function Header({ onMenuOpen }: Props) {
-  const { currentPage, conflicts, projects, setCurrentPage, tasks, milestones, risks } = useAppStore();
+  const { currentPage, projects, setCurrentPage, tasks, milestones, risks } = useAppStore();
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -107,9 +107,6 @@ export default function Header({ onMenuOpen }: Props) {
   const notifications = [
     ...tasks.filter(t => t.status !== 'completed' && t.plannedEnd < today).slice(0, 4).map(t => ({
       type: 'delay', text: `Zpožděno: ${t.name}`, color: 'text-red-600',
-    })),
-    ...conflicts.slice(0, 3).map(c => ({
-      type: 'conflict', text: c.description, color: 'text-orange-600',
     })),
   ];
 

@@ -36,7 +36,7 @@ interface Props {
 }
 
 export default function Sidebar({ open, onClose, onLogout }: Props) {
-  const { currentPage, setCurrentPage, conflicts, tasks, risks, milestones, projects, currentProjectId, setCurrentProjectId, users, notificationRecords } = useAppStore();
+  const { currentPage, setCurrentPage, tasks, risks, milestones, projects, currentProjectId, setCurrentProjectId, users, notificationRecords } = useAppStore();
   const [projectOpen, setProjectOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -48,7 +48,7 @@ export default function Sidebar({ open, onClose, onLogout }: Props) {
 
   const badges: Record<string, number> = {
     tasks: overdueTasks,
-    risks: openRisks + conflicts.length,
+    risks: openRisks,
     milestones: overdueMilestones,
     notifications: pendingConfirmations,
   };
