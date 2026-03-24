@@ -410,6 +410,7 @@ function extractSyncState(s: ReturnType<typeof useAppStore.getState>) {
     phases: s.phases,
     objects: s.objects,
     projectShares: s.projectShares,
+    mobileReports: s.mobileReports,
     projectCraftAssignments: s.projectCraftAssignments,
     taskOrder: s.taskOrder,
     roles: s.roles,
@@ -621,15 +622,16 @@ export default function App() {
   const [cloudReady, setCloudReady] = useState(() => !!sessionStorage.getItem('harmonogram-auth'));
 
   // ─── Detect share link: ?share=TOKEN ───
-  // IMPORTANT: CloudSync must run first so Neon data (incl. projectShares) is
-  // loaded before we validate the token — otherwise fresh devices always get
-  // "Neplatný odkaz" because localStorage is empty.
+  // shareCloudReady always starts false so we ALWAYS wait for Neon data before
+  // rendering PublicView — regardless of login state. This prevents "Neplatný
+  // odkaz" on fresh devices or when cloudReady is already true from a session.
   const shareToken = new URLSearchParams(window.location.search).get('share');
+  const [shareCloudReady, setShareCloudReady] = useState(false);
   if (shareToken) {
     return (
       <>
-        <CloudSync onReady={() => setCloudReady(true)} />
-        {cloudReady ? (
+        <CloudSync onReady={() => setShareCloudReady(true)} />
+        {shareCloudReady ? (
           <PublicView token={shareToken} />
         ) : (
           <div className="min-h-screen bg-gray-50 flex items-center justify-center">

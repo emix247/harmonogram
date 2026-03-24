@@ -1,10 +1,38 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAppStore } from '../store/appStore';
 import { generateId } from '../utils/helpers';
-import { Smartphone, Camera, MessageSquare, AlertTriangle, CheckCircle, Play, Square, Bell, BellOff } from 'lucide-react';
+import { Smartphone, Camera, MessageSquare, AlertTriangle, CheckCircle, Play, Square, Bell, BellOff, X, ImagePlus, Loader2 } from 'lucide-react';
 import type { MobileReport } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+
+// ── Image helpers ──────────────────────────────────────────────────────────────
+
+/** Compress an image File to JPEG using canvas. Returns base64 data (no prefix). */
+function compressImage(file: File, maxDim = 1200, quality = 0.78): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width: w, height: h } = img;
+      if (w > maxDim || h > maxDim) {
+        if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else        { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      resolve(dataUrl.split(',')[1]); // strip "data:image/jpeg;base64,"
+    };
+    img.onerror = reject;
+    img.src = objectUrl;
+  });
+}
+
+interface PhotoEntry { file: File; preview: string; uploading?: boolean; url?: string; error?: boolean; }
+
 
 const reportTypeIcon = (type: MobileReport['type']) => {
   const icons = {
@@ -39,6 +67,8 @@ export default function MobileReporting() {
   const [filterProject, setFilterProject] = useState('');
   const [notifySending, setNotifySending] = useState(false);
   const [notifyResult, setNotifyResult] = useState<'sent' | 'error' | null>(null);
+  const [photos, setPhotos] = useState<PhotoEntry[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     taskId: '',
     projectId: projects[0]?.id || '',
@@ -47,6 +77,51 @@ export default function MobileReporting() {
     progressPercent: 50,
     notifyContractor: false,
   });
+
+  // ── Photo handlers ────────────────────────────────────────────────────────
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!files.length) return;
+
+    const newEntries: PhotoEntry[] = files.map(file => ({
+      file,
+      preview: URL.createObjectURL(file),
+      uploading: true,
+    }));
+    setPhotos(prev => [...prev, ...newEntries]);
+
+    // Upload each photo
+    for (const entry of newEntries) {
+      const id = generateId();
+      try {
+        const base64 = await compressImage(entry.file);
+        const r = await fetch(`${API_BASE}/api/photos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, data: base64, mimeType: 'image/jpeg' }),
+        });
+        const d = await r.json();
+        setPhotos(prev => prev.map(p =>
+          p.preview === entry.preview
+            ? { ...p, uploading: false, url: d.url ?? undefined, error: !d.url }
+            : p
+        ));
+      } catch {
+        setPhotos(prev => prev.map(p =>
+          p.preview === entry.preview ? { ...p, uploading: false, error: true } : p
+        ));
+      }
+    }
+  };
+
+  const removePhoto = (preview: string) => {
+    setPhotos(prev => {
+      const entry = prev.find(p => p.preview === preview);
+      if (entry) URL.revokeObjectURL(entry.preview);
+      return prev.filter(p => p.preview !== preview);
+    });
+  };
 
   const sorted = [...mobileReports]
     .filter(r => filterProject ? r.projectId === filterProject : true)
@@ -67,6 +142,8 @@ export default function MobileReporting() {
 
     const project = projects.find(p => p.id === form.projectId);
 
+    const uploadedUrls = photos.filter(p => p.url).map(p => p.url!);
+
     const report: MobileReport = {
       id: generateId(),
       taskId: form.taskId,
@@ -74,7 +151,7 @@ export default function MobileReporting() {
       reporterId: users[0]?.id || 'u1',
       type: form.type,
       description: form.description,
-      photos: [],
+      photos: uploadedUrls,
       timestamp: new Date().toISOString(),
       progressPercent: form.type === 'progress' ? form.progressPercent : undefined,
     };
@@ -130,6 +207,8 @@ export default function MobileReporting() {
 
     setShowForm(false);
     setNotifyResult(null);
+    photos.forEach(p => URL.revokeObjectURL(p.preview));
+    setPhotos([]);
     setForm({ taskId: '', projectId: projects[0]?.id || '', type: 'progress', description: '', progressPercent: 50, notifyContractor: false });
   };
 
@@ -207,6 +286,19 @@ export default function MobileReporting() {
                         <div className="h-2 rounded-full bg-blue-500" style={{ width: `${report.progressPercent}%` }} />
                       </div>
                       <span className="text-xs font-medium">{report.progressPercent}%</span>
+                    </div>
+                  )}
+                  {report.photos && report.photos.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {report.photos.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={url}
+                            alt={`foto ${i + 1}`}
+                            className="w-16 h-16 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity"
+                          />
+                        </a>
+                      ))}
                     </div>
                   )}
                   <div className="flex gap-3 text-xs text-gray-500 flex-wrap">
@@ -311,9 +403,59 @@ export default function MobileReporting() {
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" rows={3} />
               </div>
 
-              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-500">
-                <Camera size={16} />
-                <span>Nahrát fotografie (demo verze)</span>
+              {/* ── Photo upload ─────────────────────────────────────── */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fotografie</label>
+
+                {/* Thumbnails */}
+                {photos.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {photos.map(p => (
+                      <div key={p.preview} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+                        <img src={p.preview} alt="" className="w-full h-full object-cover" />
+                        {p.uploading && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <Loader2 size={18} className="text-white animate-spin" />
+                          </div>
+                        )}
+                        {p.error && (
+                          <div className="absolute inset-0 bg-red-500/60 flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">!</span>
+                          </div>
+                        )}
+                        {!p.uploading && (
+                          <button
+                            type="button"
+                            onClick={() => removePhoto(p.preview)}
+                            className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center"
+                          >
+                            <X size={10} className="text-white" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add photos button */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  capture="environment"
+                  className="hidden"
+                  onChange={handlePhotoSelect}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 w-full border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 rounded-lg p-3 text-sm text-gray-500 hover:text-blue-600 transition-colors"
+                >
+                  <ImagePlus size={18} />
+                  <span>{photos.length > 0 ? 'Přidat další fotografie' : 'Pořídit / vybrat fotografie'}</span>
+                  <Camera size={16} className="ml-auto opacity-40" />
+                </button>
               </div>
 
               {/* Notify contractor — only for problem type */}
