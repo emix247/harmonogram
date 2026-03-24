@@ -69,6 +69,7 @@ export default function MobileReporting() {
   const [notifyResult, setNotifyResult] = useState<'sent' | 'error' | null>(null);
   const [photos, setPhotos] = useState<PhotoEntry[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     taskId: '',
     projectId: projects[0]?.id || '',
@@ -193,6 +194,9 @@ export default function MobileReporting() {
               notificationType: 'problem_report',
               emailIntro: form.description,
               showConfirmButton: false,
+              photoUrls: uploadedUrls.map(url =>
+                url.startsWith('http') ? url : `${window.location.origin}${url}`
+              ),
             }],
           }),
         });
@@ -447,15 +451,32 @@ export default function MobileReporting() {
                   className="hidden"
                   onChange={handlePhotoSelect}
                 />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 w-full border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 rounded-lg p-3 text-sm text-gray-500 hover:text-blue-600 transition-colors"
-                >
-                  <ImagePlus size={18} />
-                  <span>{photos.length > 0 ? 'Přidat další fotografie' : 'Pořídit / vybrat fotografie'}</span>
-                  <Camera size={16} className="ml-auto opacity-40" />
-                </button>
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handlePhotoSelect}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center gap-2 flex-1 border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 rounded-lg p-3 text-sm text-gray-500 hover:text-blue-600 transition-colors"
+                  >
+                    <Camera size={16} />
+                    <span>Vyfotit</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="flex items-center justify-center gap-2 flex-1 border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 rounded-lg p-3 text-sm text-gray-500 hover:text-blue-600 transition-colors"
+                  >
+                    <ImagePlus size={16} />
+                    <span>Z galerie</span>
+                  </button>
+                </div>
               </div>
 
               {/* Notify contractor — only for problem type */}

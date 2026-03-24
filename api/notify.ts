@@ -59,6 +59,7 @@ export interface NotifyItem {
   showConfirmButton?: boolean;
   ccEmails?: string[];
   internalEmails?: string[];
+  photoUrls?: string[];
   // deadline_reminder / internal_reminder extra
   daysBeforeDeadline?: number;
 }
@@ -179,6 +180,18 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
     </div>` : '';
 
   // ── problem_report: simple description block ──────────────────────────────
+  const photosHtml = (n.photoUrls?.length)
+    ? `<div style="margin-top:16px;">
+        <div class="date-label" style="margin-bottom:8px;">Přiložené fotografie (${n.photoUrls.length})</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          ${n.photoUrls.map(url =>
+            `<a href="${url}" target="_blank" style="display:block; border-radius:6px; overflow:hidden; border:1px solid #e2e8f0;">
+              <img src="${url}" alt="foto" style="width:160px; height:120px; object-fit:cover; display:block;" />
+            </a>`
+          ).join('')}
+        </div>
+      </div>` : '';
+
   const problemBlockHtml = isProblem ? `
     <div class="task-box" style="border-left:4px solid #dc2626;">
       <div class="task-name" style="color:#dc2626;">⚠ ${n.taskName}</div>
@@ -188,6 +201,7 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
         <div><div class="date-label">Plánovaný nástup</div><div class="date-value new-date">${formatDate(n.newStart)}</div></div>
         <div><div class="date-label">Plánované dokončení</div><div class="date-value" style="color:#374151;">${formatDate(n.newEnd)}</div></div>
       </div>
+      ${photosHtml}
     </div>` : '';
 
   // ── Header colour ──────────────────────────────────────────────────────────
