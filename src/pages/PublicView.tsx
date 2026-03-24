@@ -227,7 +227,7 @@ export default function PublicView({ token }: Props) {
       <div className="max-w-7xl mx-auto px-6 py-6">
         {activeTab === 'gantt' && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <GanttScheduler lockedProjectId={project.id} hideToolbar />
+            <GanttScheduler lockedProjectId={project.id} hideToolbar hideContractors />
           </div>
         )}
 
@@ -251,7 +251,6 @@ export default function PublicView({ token }: Props) {
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">#</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Název úkolu</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Řemeslo</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Zahájení</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Dokončení</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Postup</th>
@@ -261,7 +260,6 @@ export default function PublicView({ token }: Props) {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {projectTasks.map((task, idx) => {
-                      const craft = crafts.find((c) => c.id === task.craftId);
                       const phase = phases.find((ph) => ph.id === task.phaseId);
                       return (
                         <tr key={task.id} className="hover:bg-gray-50 transition-colors">
@@ -270,18 +268,6 @@ export default function PublicView({ token }: Props) {
                             <div className="font-medium text-gray-900">{task.name}</div>
                             {phase && (
                               <div className="text-xs text-gray-400 mt-0.5">{phase.name}</div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            {craft ? (
-                              <span
-                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                                style={{ backgroundColor: craft.color + '20', color: craft.color }}
-                              >
-                                {craft.name}
-                              </span>
-                            ) : (
-                              <span className="text-gray-300">—</span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDate(task.plannedStart)}</td>

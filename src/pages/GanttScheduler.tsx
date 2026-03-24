@@ -74,9 +74,10 @@ const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
 interface GanttSchedulerProps {
   lockedProjectId?: string;
   hideToolbar?: boolean;
+  hideContractors?: boolean;
 }
 
-export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSchedulerProps = {}) {
+export default function GanttScheduler({ lockedProjectId, hideToolbar, hideContractors }: GanttSchedulerProps = {}) {
   const {
     tasks, projects, phases, currentProjectId, milestones, crafts, objects, users, contractors,
     addTask, updateTask, deleteTask, notificationRecords,
@@ -712,16 +713,19 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
           <table className="text-sm" style={{ tableLayout: 'fixed', width: tblW.reduce((s, w) => s + w, 0) }}>
             <thead className="border-b border-gray-100">
               <tr className="text-xs text-gray-500 bg-gray-50">
-                {(['#', 'Název úkolu', 'Fáze', 'Objekt', 'Zhotovitel', 'Odpovědná osoba', 'Zahájení', 'Dokončení', 'Trvání', 'Postup', 'Stav'] as const).map((label, i) => (
-                  <th
-                    key={label}
-                    style={{ width: tblW[i], position: 'relative' }}
-                    className="text-left px-4 py-2.5 font-medium overflow-hidden"
-                  >
-                    <span className="truncate block">{label}</span>
-                    <ResizeHandle onMouseDown={e => tblResize(i, e)} />
-                  </th>
-                ))}
+                {(['#', 'Název úkolu', 'Fáze', 'Objekt', 'Zhotovitel', 'Odpovědná osoba', 'Zahájení', 'Dokončení', 'Trvání', 'Postup', 'Stav'] as const).map((label, i) => {
+                  if (hideContractors && i === 4) return null;
+                  return (
+                    <th
+                      key={label}
+                      style={{ width: tblW[i], position: 'relative' }}
+                      className="text-left px-4 py-2.5 font-medium overflow-hidden"
+                    >
+                      <span className="truncate block">{label}</span>
+                      <ResizeHandle onMouseDown={e => tblResize(i, e)} />
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -760,7 +764,7 @@ export default function GanttScheduler({ lockedProjectId, hideToolbar }: GanttSc
                       ) : <span className="text-gray-300 text-xs">–</span>}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">{obj?.name || <span className="text-gray-300">–</span>}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-700 truncate">{contractor ? contractor.name : <span className="text-gray-300">–</span>}</td>
+                    {!hideContractors && <td className="px-4 py-2.5 text-xs text-gray-700 truncate">{contractor ? contractor.name : <span className="text-gray-300">–</span>}</td>}
                     <td className="px-4 py-2.5">
                       {responsiblePerson ? (
                         <div className="flex items-center gap-1.5">
