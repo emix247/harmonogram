@@ -251,6 +251,8 @@ export interface NotificationRule {
 
   // cascade: only fire when |shiftDays| >= minShiftDays (default 1)
   minShiftDays: number;
+  // cascade: when true, only send notifications for critical tasks
+  criticalOnly?: boolean;
   // deadline_reminder: fire N days before task.plannedEnd
   daysBeforeDeadline: number;
 
