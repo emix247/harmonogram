@@ -19,6 +19,7 @@ import Settings from './pages/Settings';
 import PublicView from './pages/PublicView';
 import Notifikace from './pages/Notifikace';
 import type { NotificationRecord, PendingNotification } from './types';
+import { localToday } from './utils/helpers';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
@@ -209,7 +210,7 @@ function DeadlineReminderProcessor() {
     const reminderRules = rules.filter(r => r.enabled && r.trigger === 'deadline_reminder');
     if (reminderRules.length === 0) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = localToday();
     const newPending: PendingNotification[] = [];
 
     for (const rule of reminderRules) {
@@ -276,7 +277,7 @@ function InternalReminderProcessor() {
     const internalRules = rules.filter(r => r.enabled && r.trigger === 'internal_reminder');
     if (internalRules.length === 0) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = localToday();
     const newPending: PendingNotification[] = [];
 
     for (const rule of internalRules) {
@@ -620,9 +621,26 @@ export default function App() {
   const [cloudReady, setCloudReady] = useState(() => !!sessionStorage.getItem('harmonogram-auth'));
 
   // ─── Detect share link: ?share=TOKEN ───
+  // IMPORTANT: CloudSync must run first so Neon data (incl. projectShares) is
+  // loaded before we validate the token — otherwise fresh devices always get
+  // "Neplatný odkaz" because localStorage is empty.
   const shareToken = new URLSearchParams(window.location.search).get('share');
   if (shareToken) {
-    return <PublicView token={shareToken} />;
+    return (
+      <>
+        <CloudSync onReady={() => setCloudReady(true)} />
+        {cloudReady ? (
+          <PublicView token={shareToken} />
+        ) : (
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">Načítám harmonogram…</p>
+            </div>
+          </div>
+        )}
+      </>
+    );
   }
 
   const PageComponent = pages[currentPage] || Dashboard;
