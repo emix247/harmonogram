@@ -49,7 +49,7 @@ export interface NotifyItem {
   oldEnd: string;
   newEnd: string;
   shiftDays: number;
-  notificationType?: 'cascade' | 'deadline_reminder';
+  notificationType?: 'cascade' | 'deadline_reminder' | 'internal_reminder' | 'problem_report';
   ruleId?: string;
   // email template overrides (uses defaults if absent)
   emailSubject?: string;
@@ -81,11 +81,15 @@ const DEFAULT_INTERNAL_INTRO    = 'Upomínka úkolu: {{ukolNazev}} začíná {{d
 const DEFAULT_INTERNAL_FOOTER   = 'Tato zpráva byla automaticky odeslána systémem Plánování staveb.';
 const DEFAULT_INTERNAL_NOTE     = 'Beru na vědomí, mám zajištěno, nebo zajistím.';
 
+const DEFAULT_PROBLEM_SUBJECT = 'Hlášení problému: {{ukolNazev}} — projekt {{projektNazev}}';
+const DEFAULT_PROBLEM_FOOTER  = 'Tato zpráva byla odeslána stavbyvedoucím přes systém Plánování staveb. Prosíme o neprodlené vyjádření.';
+
 // ── Email builder ─────────────────────────────────────────────────────────────
 
 function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html: string } {
   const isReminder  = n.notificationType === 'deadline_reminder';
   const isInternal  = n.notificationType === 'internal_reminder';
+  const isProblem   = n.notificationType === 'problem_report';
   const dniDo       = n.daysBeforeDeadline != null ? String(n.daysBeforeDeadline) : '—';
 
   const vars: Record<string, string> = {
@@ -103,11 +107,13 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
     dniDo:               dniDo,
   };
 
-  const defaultSubject = isInternal ? DEFAULT_INTERNAL_SUBJECT
+  const defaultSubject = isProblem   ? DEFAULT_PROBLEM_SUBJECT
+    : isInternal ? DEFAULT_INTERNAL_SUBJECT
     : isReminder ? DEFAULT_REMINDER_SUBJECT : DEFAULT_SUBJECT;
   const defaultIntro   = isInternal ? DEFAULT_INTERNAL_INTRO
     : isReminder ? DEFAULT_REMINDER_INTRO : DEFAULT_INTRO;
-  const defaultFooter  = isInternal ? DEFAULT_INTERNAL_FOOTER
+  const defaultFooter  = isProblem   ? DEFAULT_PROBLEM_FOOTER
+    : isInternal ? DEFAULT_INTERNAL_FOOTER
     : isReminder ? DEFAULT_REMINDER_FOOTER : DEFAULT_FOOTER;
 
   const subject     = renderVars(n.emailSubject ?? defaultSubject, vars);
@@ -172,12 +178,25 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
       <a href="${confirmUrl}">✓ Potvrzuji nový termín</a>
     </div>` : '';
 
-  // ── Header colour: blue (contractor) vs amber (internal) ──────────────────
-  const headerBg = isInternal ? '#b45309' : '#1e40af';
-  const headerTitle = isInternal ? 'Interní připomínka'
+  // ── problem_report: simple description block ──────────────────────────────
+  const problemBlockHtml = isProblem ? `
+    <div class="task-box" style="border-left:4px solid #dc2626;">
+      <div class="task-name" style="color:#dc2626;">⚠ ${n.taskName}</div>
+      <p style="margin:8px 0 0; color:#374151; font-size:15px;">${intro}</p>
+      <div style="margin-top:14px; display:flex; gap:20px; flex-wrap:wrap;">
+        <div><div class="date-label">Projekt</div><div class="date-value" style="color:#374151;">${n.projectName}</div></div>
+        <div><div class="date-label">Plánovaný nástup</div><div class="date-value new-date">${formatDate(n.newStart)}</div></div>
+        <div><div class="date-label">Plánované dokončení</div><div class="date-value" style="color:#374151;">${formatDate(n.newEnd)}</div></div>
+      </div>
+    </div>` : '';
+
+  // ── Header colour ──────────────────────────────────────────────────────────
+  const headerBg = isProblem ? '#dc2626' : isInternal ? '#b45309' : '#1e40af';
+  const headerTitle = isProblem ? '⚠ Hlášení problému ze staveniště'
+    : isInternal ? 'Interní připomínka'
     : isReminder ? 'Připomínka termínu' : 'Změna termínu zahájení';
-  const greeting = isInternal
-    ? '<p class="greeting">Dobrý den,</p>'
+  const greeting = (isInternal || isProblem)
+    ? `<p class="greeting">Dobrý den, ${n.contractorName || ''},</p>`
     : `<p class="greeting">Dobrý den, ${n.contractorName},</p>`;
 
   const html = `<!DOCTYPE html>
@@ -216,8 +235,7 @@ function buildEmail(n: NotifyItem, confirmUrl: string): { subject: string; html:
     </div>
     <div class="body">
       ${greeting}
-      <p>${intro}</p>
-      ${dateTableHtml}
+      ${isProblem ? problemBlockHtml : `<p>${intro}</p>${dateTableHtml}`}
       ${confirmBtnHtml}
       ${n.emailNote ? `<p style="color:#9ca3af; font-size:12px; text-align:center;">${n.emailNote}</p>` : ''}
     </div>
